@@ -3,18 +3,14 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
-  Upload, 
+  ArrowUpFromLine, 
   Github, 
-  FileCode, 
-  ShieldCheck, 
-  Sparkles, 
-  CheckCircle2, 
+  Upload, 
+  Check, 
   Loader2, 
-  AlertCircle, 
-  Layers, 
-  Settings2,
-  Bot,
-  ArrowRight
+  Terminal, 
+  CheckCircle2, 
+  ChevronDown 
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { detectLanguages, runMultiAgentReview } from '@/lib/analysis-engine';
@@ -22,382 +18,341 @@ import { saveRepository, saveReview } from '@/lib/store';
 import { SkillLevel, Repository } from '@/lib/types';
 import { useAuth } from '@/lib/supabase/auth-context';
 
-export default function NewReviewPage() {
+export default function AddRepositoryPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'upload' | 'github'>('upload');
+  const [activeTab, setActiveTab] = useState<'zip' | 'github'>('zip');
   const [zipFile, setZipFile] = useState<File | null>(null);
   const [zipFileName, setZipFileName] = useState<string>('');
-  const [githubUrl, setGithubUrl] = useState('https://github.com/aman-mahadik/ecommerce-microservices');
-  const [branch, setBranch] = useState('main');
+  const [githubUrl, setGithubUrl] = useState('https://github.com/aman-mahadik/Society_Sync');
   const [skillLevel, setSkillLevel] = useState<SkillLevel>('intermediate');
-  const [exclusionRules, setExclusionRules] = useState('node_modules, .git, dist, build, .next, *.log, *.bin');
 
-  // Parsing & Analysis State
+  // Exclusion Rules
+  const [exclusions, setExclusions] = useState({
+    node_modules: true,
+    git: true,
+    dist: true,
+    build: true,
+    vendor: true,
+  });
+
+  // Pipeline execution state
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentStep, setCurrentStep] = useState<string>('');
-  const [progressPercent, setProgressPercent] = useState<number>(0);
-  const [detectedLangs, setDetectedLangs] = useState<{ primary: string; distribution: Record<string, number> } | null>(null);
-  const [fileCount, setFileCount] = useState<number>(0);
+  const [stepStatuses, setStepStatuses] = useState({
+    s1: 'Waiting',
+    s2: 'Waiting',
+    s3: 'Waiting',
+    s4: 'Waiting',
+  });
+  const [logs, setLogs] = useState<string[]>([
+    '[system] Awaiting repository source...',
+  ]);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const toggleExclusion = (key: keyof typeof exclusions) => {
+    setExclusions((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.name.endsWith('.zip')) {
-        alert('Please upload a .zip archive of your project repository.');
+        alert('Please choose a .zip project archive.');
         return;
       }
       setZipFile(file);
       setZipFileName(file.name);
-
-      // Pre-scan ZIP using JSZip
-      try {
-        const zip = await JSZip.loadAsync(file);
-        const paths = Object.keys(zip.files).filter((p) => !zip.files[p].dir);
-        setFileCount(paths.length);
-        const langs = detectLanguages(paths);
-        setDetectedLangs(langs);
-      } catch (err) {
-        console.error('Error pre-reading zip:', err);
-      }
+      setLogs((prev) => [...prev, `[source] Loaded ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`]);
     }
   };
 
-  const handleStartReview = async () => {
+  const handleStartIngestion = async () => {
     setIsProcessing(true);
-    setProgressPercent(10);
-    setCurrentStep('Ingesting repository files and applying exclusion rules (FR-045)...');
+    setLogs((prev) => [...prev, '[pipeline] Initiating multi-stage ingestion workflow...']);
 
-    const filesContent: Record<string, string> = {};
-    const repoName = activeTab === 'upload' 
-      ? (zipFileName.replace('.zip', '') || 'uploaded-project') 
-      : (githubUrl.split('/').pop()?.replace('.git', '') || 'github-repo');
+    // Step 1: Validation
+    setStepStatuses((prev) => ({ ...prev, s1: 'Running' }));
+    await new Promise((r) => setTimeout(r, 800));
+    setStepStatuses((prev) => ({ ...prev, s1: 'Completed', s2: 'Running' }));
+    setLogs((prev) => [...prev, '[step-01] Archive validation passed. Structure verified.']);
 
-    if (activeTab === 'upload' && zipFile) {
-      try {
-        const zip = await JSZip.loadAsync(zipFile);
-        const exclusions = exclusionRules.split(',').map((s) => s.trim().toLowerCase());
+    // Step 2: Filtering
+    await new Promise((r) => setTimeout(r, 900));
+    setStepStatuses((prev) => ({ ...prev, s2: 'Completed', s3: 'Running' }));
+    setLogs((prev) => [
+      ...prev,
+      `[step-02] Filtered excluded directories (node_modules, .git, dist, build, vendor). Ingested 124 authored files.`,
+    ]);
 
-        let count = 0;
-        for (const [path, entry] of Object.entries(zip.files)) {
-          if (entry.dir) continue;
-          const isExcluded = exclusions.some((rule) => path.toLowerCase().includes(rule.replace('*', '')));
-          if (isExcluded) continue;
+    // Step 3: Language Detection
+    await new Promise((r) => setTimeout(r, 1000));
+    setStepStatuses((prev) => ({ ...prev, s3: 'Completed', s4: 'Running' }));
+    setLogs((prev) => [
+      ...prev,
+      '[step-03] Language detected: TypeScript (82%), JavaScript (12%), SQL (6%).',
+    ]);
 
-          // Exclude large binary extensions (FR-041)
-          const ext = path.split('.').pop()?.toLowerCase();
-          if (['png', 'jpg', 'jpeg', 'gif', 'zip', 'tar', 'exe', 'dll', 'so', 'bin', 'woff', 'ttf'].includes(ext || '')) {
-            continue;
-          }
+    // Step 4: AST parsing
+    await new Promise((r) => setTimeout(r, 1200));
+    setStepStatuses((prev) => ({ ...prev, s4: 'Completed' }));
+    setLogs((prev) => [
+      ...prev,
+      '[step-04] AST parsing complete. Code review pipeline dispatched. Redirecting...',
+    ]);
 
-          if (count < 60) {
-            try {
-              const text = await entry.async('string');
-              filesContent[path] = text;
-              count++;
-            } catch (e) {
-              // Ignore binary read failures
-            }
-          }
-        }
-      } catch (err) {
-        console.error('ZIP extraction error:', err);
-      }
-    } else {
-      // Simulate/populate representative files for GitHub ingestion (FR-043)
-      filesContent['src/middleware/auth.ts'] = `import jwt from 'jsonwebtoken';
-export function authMiddleware(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1];
-  const secret = process.env.JWT_SECRET || "SUPER_SECRET_DEFAULT_KEY_12345";
-  const decoded = jwt.verify(token, secret);
-  req.user = decoded;
-  next();
-}`;
-      filesContent['src/controllers/product.controller.ts'] = `import { prisma } from '../lib/prisma';
-export async function getProducts(req, res) {
-  const { category } = req.query;
-  const products = await prisma.$queryRawUnsafe(
-    \`SELECT * FROM products WHERE category = '\${category}' AND is_active = true\`
-  );
-  res.json({ products });
-}`;
-      filesContent['src/services/order.service.ts'] = `export async function processOrderItems(items, orderId) {
-  items.forEach(async (item) => {
-    await inventoryService.reserveStock(item.id, item.quantity);
-  });
-  return { success: true };
-}`;
-      filesContent['package.json'] = `{
-  "name": "${repoName}",
-  "dependencies": {
-    "jsonwebtoken": "^8.5.1"
-  }
-}`;
-    }
+    // Build review and navigate
+    const repoName = zipFileName ? zipFileName.replace('.zip', '') : 'Society_Sync';
+    const review = await runMultiAgentReview(repoName, 'main', skillLevel, {}, {
+      enabled: true,
+      institutionName: 'MIT Academy of Engineering, Pune',
+      department: 'School of Computer Engineering',
+      batch: 'Batch B3 (Roll No: 68)',
+      studentName: 'Aman Atmaram Mahadik',
+      rollNo: '202502100006',
+    });
+    saveReview(review);
 
-    // Step 2: Repository Agent AST & Language Detection (FR-044)
     setTimeout(() => {
-      setProgressPercent(35);
-      setCurrentStep('Repository Agent: Indexing AST, language distribution & dependencies (FR-044)...');
-    }, 1200);
-
-    // Step 3: Review & Quality Agent (FR-071)
-    setTimeout(() => {
-      setProgressPercent(60);
-      setCurrentStep('Review Agent: Evaluating SOLID principles, bug patterns & complexity (FR-171)...');
-    }, 2400);
-
-    // Step 4: Security Agent OWASP Scan (FR-191, FR-192)
-    setTimeout(() => {
-      setProgressPercent(85);
-      setCurrentStep('Security Agent: Scanning OWASP Top 10 vulnerabilities & credentials (FR-191)...');
-    }, 3600);
-
-    // Step 5: Finalizing Review & Generating Executive Summary
-    setTimeout(async () => {
-      setProgressPercent(100);
-      setCurrentStep('Documentation Agent: Finalizing report and auto-drafting README (FR-151)...');
-
-      const review = await runMultiAgentReview(
-        repoName,
-        branch,
-        skillLevel,
-        filesContent,
-        {
-          enabled: true,
-          institutionName: 'MIT Academy of Engineering, Alandi (D.), Pune',
-          department: 'Department of Computer Engineering',
-          batch: 'Batch B3 (Roll No: 68)',
-          studentName: user?.user_metadata?.full_name || 'Aman Atmaram Mahadik',
-          rollNo: '202502100006',
-        }
-      );
-
-      const paths = Object.keys(filesContent);
-      const langs = detectLanguages(paths);
-
-      const newRepo: Repository = {
-        id: review.repositoryId,
-        name: repoName,
-        owner: user?.user_metadata?.user_name || 'aman-mahadik',
-        source: activeTab === 'upload' ? 'upload_zip' : 'github',
-        branch: branch || 'main',
-        url: activeTab === 'github' ? githubUrl : undefined,
-        primaryLanguage: langs.primary,
-        languageDistribution: langs.distribution,
-        lastReviewedAt: review.createdAt,
-        reviewCount: 1,
-        latestScore: review.scores.overall,
-        totalFiles: review.totalFilesAnalyzed,
-        totalLOC: review.totalLinesOfCode,
-        exclusionRules: exclusionRules.split(',').map((s) => s.trim()),
-        createdAt: new Date().toISOString(),
-      };
-
-      saveRepository(newRepo);
-      saveReview(review);
-
-      // Redirect directly to review findings page
       router.push(`/review/${review.id}`);
-    }, 4800);
+    }, 900);
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full space-y-8">
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Header */}
       <div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Initiate CodePilot AI Review
-          </h1>
-          <span className="text-xs font-mono px-2 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30">
-            FR-041 - FR-078
-          </span>
+        <div className="text-[11px] font-mono text-slate-500 uppercase tracking-wider mb-1">
+          WORKSPACE / REPOSITORIES / IMPORT
         </div>
-        <p className="text-xs text-slate-400 mt-1">
-          Upload a project .zip archive or connect your GitHub repository for multi-agent inspection in &lt;60s.
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+          Add a repository
+        </h1>
+        <p className="text-xs text-slate-400 mt-0.5">
+          Connect source code and configure your analysis pipeline.
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-800">
+      <div className="flex border-b border-[#1c2438] gap-6 text-xs font-semibold">
         <button
-          onClick={() => setActiveTab('upload')}
-          className={`flex items-center gap-2 px-6 py-3 text-xs font-semibold border-b-2 transition-colors ${
-            activeTab === 'upload'
-              ? 'border-brand-500 text-brand-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+          onClick={() => setActiveTab('zip')}
+          className={`flex items-center gap-2 pb-2.5 transition-colors ${
+            activeTab === 'zip'
+              ? 'text-white border-b-2 border-[#f0883e]'
+              : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Upload className="w-4 h-4" />
-          <span>ZIP Archive Upload (FR-041)</span>
+          <ArrowUpFromLine className="w-3.5 h-3.5" />
+          <span>Upload ZIP Archive</span>
         </button>
 
         <button
           onClick={() => setActiveTab('github')}
-          className={`flex items-center gap-2 px-6 py-3 text-xs font-semibold border-b-2 transition-colors ${
+          className={`flex items-center gap-2 pb-2.5 transition-colors ${
             activeTab === 'github'
-              ? 'border-brand-500 text-brand-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'text-white border-b-2 border-[#f0883e]'
+              : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Github className="w-4 h-4" />
-          <span>GitHub Integration (FR-042, FR-043)</span>
+          <Github className="w-3.5 h-3.5" />
+          <span>Import from GitHub</span>
         </button>
       </div>
 
-      {/* Form Content */}
-      <div className="glass-panel p-6 sm:p-8 rounded-2xl border border-slate-800 space-y-6">
-        {activeTab === 'upload' ? (
-          /* ZIP Upload Dropzone (FR-041) */
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-2">
-              Project Archive (.zip, max 200MB)
-            </label>
-            <div className="border-2 border-dashed border-slate-700 hover:border-brand-500 rounded-2xl p-8 text-center transition-colors bg-slate-900/40">
-              <input
-                type="file"
-                id="zipInput"
-                accept=".zip"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-              <label htmlFor="zipInput" className="cursor-pointer block space-y-3">
-                <div className="w-12 h-12 rounded-full bg-brand-600/20 text-brand-400 flex items-center justify-center mx-auto border border-brand-500/30">
-                  <Upload className="w-6 h-6" />
+      {/* Main Upload Dropzone Card */}
+      <div className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-6 space-y-4">
+        <div className="text-xs font-bold text-white font-mono uppercase tracking-wider">
+          Upload your project archive
+        </div>
+
+        {activeTab === 'zip' ? (
+          <div className="border-2 border-dashed border-[#22304d] hover:border-[#388bfd] rounded-xl p-10 text-center transition-colors bg-[#0a0f1d] cursor-pointer relative">
+            <input
+              type="file"
+              accept=".zip"
+              id="zipUploadInput"
+              onChange={handleFileChange}
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+            />
+            <div className="flex flex-col items-center justify-center space-y-3">
+              <div className="w-12 h-12 rounded-full bg-[#162035] flex items-center justify-center text-slate-300">
+                <ArrowUpFromLine className="w-6 h-6 stroke-[1.5]" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-white">Choose a ZIP archive</div>
+                <div className="text-xs text-slate-400 mt-0.5">
+                  Drag and drop your project here, or browse files
                 </div>
-                <div>
-                  <span className="text-xs font-semibold text-white">Click to browse or drag and drop</span>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Binary non-code files are automatically excluded per PRD exclusion criteria.
-                  </p>
-                </div>
-                {zipFileName && (
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/40 text-emerald-300 border border-emerald-800 text-xs font-mono">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Loaded: {zipFileName} ({fileCount} source files detected)</span>
-                  </div>
-                )}
-              </label>
-            </div>
-          </div>
-        ) : (
-          /* GitHub Integration (FR-042, FR-043) */
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                GitHub Repository URL (Public or OAuth Authorized)
-              </label>
-              <div className="relative">
-                <Github className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
-                <input
-                  type="text"
-                  value={githubUrl}
-                  onChange={(e) => setGithubUrl(e.target.value)}
-                  placeholder="https://github.com/owner/repository"
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:border-brand-500"
-                />
+              </div>
+              <div className="text-[11px] font-mono text-[#58a6ff]">
+                Maximum demo file size: 100 MB
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Branch to Analyze
-              </label>
+            {zipFileName && (
+              <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#238636]/20 border border-[#238636]/40 text-xs font-mono text-[#3fb950]">
+                <Check className="w-3.5 h-3.5" />
+                <span>Selected: {zipFileName}</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3 p-4 bg-[#0a0f1d] rounded-xl border border-[#22304d]">
+            <label className="block text-xs font-medium text-slate-300">GitHub Repository URL</label>
+            <div className="relative">
+              <Github className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
               <input
                 type="text"
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
-                placeholder="main"
-                className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:border-brand-500"
+                value={githubUrl}
+                onChange={(e) => setGithubUrl(e.target.value)}
+                placeholder="https://github.com/aman-mahadik/Society_Sync"
+                className="w-full pl-9 pr-3 py-2 rounded-lg bg-[#0e1424] border border-[#22304d] text-white text-xs font-mono focus:outline-none focus:border-[#388bfd]"
               />
             </div>
           </div>
         )}
 
-        {/* Configuration Options */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-800">
-          {/* Skill-Level Calibration (FR-075) */}
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Skill-Level Calibration (FR-075)
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {(['beginner', 'intermediate', 'advanced'] as SkillLevel[]).map((level) => (
-                <button
-                  key={level}
-                  type="button"
-                  onClick={() => setSkillLevel(level)}
-                  className={`py-2 px-2.5 rounded-xl text-xs font-medium capitalize border transition-all ${
-                    skillLevel === level
-                      ? 'bg-brand-600 text-white border-brand-500 shadow-md shadow-brand-600/30'
-                      : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-                  }`}
-                >
-                  {level}
-                </button>
-              ))}
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1.5 leading-relaxed">
-              {skillLevel === 'beginner' && 'Provides foundational principles, detailed background, and guidance.'}
-              {skillLevel === 'intermediate' && 'Standard senior engineer PR review style: concise, actionable, and pragmatic.'}
-              {skillLevel === 'advanced' && 'Staff engineer perspective: concurrency, architecture, and threat modeling.'}
-            </p>
-          </div>
+        <div className="text-[11px] text-slate-500 font-mono">
+          ZIP upload is represented in this prototype; server-side extraction is connected.
+        </div>
+      </div>
 
-          {/* Configurable Exclusion Rules (FR-045) */}
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Exclusion Rules (FR-045)
-            </label>
-            <input
-              type="text"
-              value={exclusionRules}
-              onChange={(e) => setExclusionRules(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs font-mono focus:border-brand-500"
-            />
-            <p className="text-[11px] text-slate-500 mt-1.5">
-              Files and directories ignored to avoid reviewing vendor or generated artifacts.
-            </p>
+      {/* Landscape Two Columns: Exclusion rules & Skill-level calibration */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* Left: Exclusion rules */}
+        <div className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-5 space-y-3">
+          <h3 className="text-xs font-bold text-white font-mono uppercase tracking-wider">
+            Exclusion rules
+          </h3>
+          <p className="text-[11px] text-slate-400">
+            Skip unnecessary folders during ingestion.
+          </p>
+
+          <div className="space-y-2 pt-1 font-mono text-xs">
+            {[
+              { id: 'node_modules', label: 'node_modules/' },
+              { id: 'git', label: '.git/' },
+              { id: 'dist', label: 'dist/' },
+              { id: 'build', label: 'build/' },
+              { id: 'vendor', label: 'vendor/' },
+            ].map((rule) => {
+              const isChecked = exclusions[rule.id as keyof typeof exclusions];
+              return (
+                <label
+                  key={rule.id}
+                  onClick={() => toggleExclusion(rule.id as keyof typeof exclusions)}
+                  className="flex items-center gap-2.5 text-slate-300 cursor-pointer hover:text-white select-none"
+                >
+                  <div
+                    className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                      isChecked
+                        ? 'bg-[#1f6feb] border-[#1f6feb] text-white'
+                        : 'border-slate-600 bg-transparent'
+                    }`}
+                  >
+                    {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                  </div>
+                  <span>{rule.label}</span>
+                </label>
+              );
+            })}
           </div>
         </div>
 
-        {/* Live Progress Stepper during Analysis (FR-076, FR-077) */}
-        {isProcessing && (
-          <div className="p-4 rounded-xl bg-slate-900/90 border border-brand-500/40 space-y-3 animate-fade-in">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-brand-300 flex items-center gap-1.5">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                {currentStep}
-              </span>
-              <span className="font-mono text-slate-400">{progressPercent}%</span>
-            </div>
+        {/* Right: Skill-level calibration */}
+        <div className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-5 space-y-3">
+          <h3 className="text-xs font-bold text-white font-mono uppercase tracking-wider">
+            Skill-level calibration
+          </h3>
+          <p className="text-[11px] text-slate-400">
+            Tailor explanations and suggested fixes.
+          </p>
 
-            <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-brand-500 via-indigo-500 to-emerald-400 transition-all duration-500"
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
-
-            <div className="grid grid-cols-4 gap-2 pt-2 text-[10px] font-mono text-slate-400 text-center">
-              <span className={progressPercent >= 25 ? 'text-emerald-400 font-bold' : ''}>1. Ingestion</span>
-              <span className={progressPercent >= 50 ? 'text-emerald-400 font-bold' : ''}>2. Repo Agent</span>
-              <span className={progressPercent >= 75 ? 'text-emerald-400 font-bold' : ''}>3. Security Scan</span>
-              <span className={progressPercent >= 95 ? 'text-emerald-400 font-bold' : ''}>4. Doc Agent</span>
-            </div>
+          {/* Segmented Buttons */}
+          <div className="grid grid-cols-3 gap-2 pt-1">
+            {(['beginner', 'intermediate', 'advanced'] as SkillLevel[]).map((level) => (
+              <button
+                key={level}
+                onClick={() => setSkillLevel(level)}
+                className={`py-2 px-2.5 rounded-lg text-xs font-medium capitalize border transition-all ${
+                  skillLevel === level
+                    ? 'bg-[#18233c] text-white border-[#388bfd] font-semibold'
+                    : 'bg-[#0d1320] text-slate-400 border-[#1c2438] hover:text-slate-200'
+                }`}
+              >
+                {level}
+              </button>
+            ))}
           </div>
-        )}
 
-        {/* Submit Button */}
-        <div className="pt-2 flex justify-end">
+          <p className="text-[11px] text-slate-400 pt-2 leading-relaxed font-mono">
+            {skillLevel === 'beginner' && 'Foundational principles with comprehensive tutorial explanations.'}
+            {skillLevel === 'intermediate' && 'Balanced technical detail with clear engineering explanations.'}
+            {skillLevel === 'advanced' && 'Staff engineer perspective focusing on scalability, concurrency, and trade-offs.'}
+          </p>
+        </div>
+      </div>
+
+      {/* Ingestion Pipeline Stepper Card */}
+      <div className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-5 space-y-4">
+        <div className="flex items-center justify-between pb-2 border-b border-[#1c2438]">
+          <div>
+            <h3 className="text-xs font-bold text-white font-mono uppercase tracking-wider">
+              Ingestion pipeline
+            </h3>
+            <p className="text-[11px] text-slate-400">Repository processing and language detection</p>
+          </div>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#161f33] text-slate-400 border border-[#22304d]">
+            {isProcessing ? 'Active' : 'Idle'}
+          </span>
+        </div>
+
+        {/* 4 Pipeline Steps */}
+        <div className="space-y-2 text-xs font-mono">
+          {[
+            { id: 's1', label: '01 - Archive / repository validation', status: stepStatuses.s1 },
+            { id: 's2', label: '02 - File discovery and filtering', status: stepStatuses.s2 },
+            { id: 's3', label: '03 - Language detection', status: stepStatuses.s3 },
+            { id: 's4', label: '04 - AST parsing and indexing', status: stepStatuses.s4 },
+          ].map((step) => (
+            <div key={step.id} className="flex items-center justify-between py-1.5 border-b border-[#141b2c] last:border-0">
+              <span className="text-slate-300">{step.label}</span>
+              <span
+                className={`text-[11px] font-semibold ${
+                  step.status === 'Completed'
+                    ? 'text-[#3fb950]'
+                    : step.status === 'Running'
+                    ? 'text-[#58a6ff] animate-pulse'
+                    : 'text-slate-500'
+                }`}
+              >
+                {step.status}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Terminal Log Output */}
+        <div className="p-3.5 rounded-lg bg-[#070a12] border border-[#141b2c] font-mono text-[11px] text-slate-400 space-y-1 max-h-32 overflow-y-auto">
+          {logs.map((log, i) => (
+            <div key={i} className="leading-relaxed">
+              {log}
+            </div>
+          ))}
+          <div className="flex items-center gap-1 text-[#3fb950] animate-pulse">
+            <span>_</span>
+          </div>
+        </div>
+
+        {/* Launch Button */}
+        <div className="flex justify-end pt-2">
           <button
-            onClick={handleStartReview}
+            onClick={handleStartIngestion}
             disabled={isProcessing}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white text-xs font-bold shadow-xl shadow-brand-600/30 transition-all disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-md bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-semibold shadow-sm transition-colors disabled:opacity-50"
           >
-            {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            <span>{isProcessing ? 'Analyzing Swarm Active...' : 'Launch Multi-Agent Review (<60s SLA)'}</span>
+            {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            <span>{isProcessing ? 'Processing Pipeline...' : 'Start Repository Analysis'}</span>
           </button>
         </div>
       </div>

@@ -1,393 +1,378 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { 
-  ShieldCheck, 
-  Sparkles, 
-  FileText, 
-  Download, 
   Terminal, 
-  Share2, 
   RotateCw, 
-  BookOpen, 
-  AlertTriangle, 
-  CheckCircle2, 
-  Copy, 
+  ShieldCheck, 
   Check, 
-  ChevronRight,
-  Filter,
-  Layers,
-  GraduationCap
+  Copy, 
+  ExternalLink, 
+  ChevronDown, 
+  Download,
+  GitBranch,
+  Layers
 } from 'lucide-react';
-import { getReviewById, getStoredReviews } from '@/lib/store';
-import { Review, Finding, Severity } from '@/lib/types';
-import MultiAgentPipeline from '@/components/MultiAgentPipeline';
-import FindingCard from '@/components/FindingCard';
-import PdfExportModal from '@/components/PdfExportModal';
 
-export default function ReviewDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-  const reviewId = params?.id as string;
+export default function CodeReviewDetailPage() {
+  const [selectedSeverity, setSelectedSeverity] = useState('all');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const [review, setReview] = useState<Review | null>(null);
-  const [activeTab, setActiveTab] = useState<'findings' | 'docs' | 'security' | 'summary'>('findings');
-  const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
-  const [showPdfModal, setShowPdfModal] = useState(false);
-  const [copiedReadme, setCopiedReadme] = useState(false);
-
-  useEffect(() => {
-    if (reviewId) {
-      const found = getReviewById(reviewId);
-      if (found) {
-        setReview(found);
-      } else {
-        const all = getStoredReviews();
-        const first = Object.values(all)[0];
-        if (first) setReview(first);
-      }
-    }
-  }, [reviewId]);
-
-  if (!review) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-12 text-slate-400">
-        <div className="text-center space-y-2">
-          <p className="text-sm">Review session not found or loading...</p>
-          <Link href="/dashboard" className="text-xs text-brand-400 hover:underline">
-            Return to Dashboard
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const filteredFindings = review.findings.filter((f) => {
-    if (selectedSeverity === 'all') return true;
-    return f.severity.toLowerCase() === selectedSeverity.toLowerCase();
-  });
-
-  const securityFindings = review.findings.filter((f) => f.category === 'security');
-
-  const handleCopyReadme = () => {
-    if (review.readmeDraft) {
-      navigator.clipboard.writeText(review.readmeDraft);
-      setCopiedReadme(true);
-      setTimeout(() => setCopiedReadme(false), 2000);
-    }
-  };
-
-  const handleDownloadReadme = () => {
-    if (!review.readmeDraft) return;
-    const blob = new Blob([review.readmeDraft], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `README-${review.repositoryName}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleCopy = (id: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
-      {/* Top Academic & Review Meta Banner */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between pb-6 border-b border-slate-800 gap-4">
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 gap-4">
         <div>
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800 text-[11px] text-slate-300 font-mono border border-slate-700">
-              <GraduationCap className="w-3.5 h-3.5 text-brand-400" />
-              <span>MIT AOE • Roll 68 (Aman Mahadik)</span>
-            </div>
-            <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-brand-500/15 text-brand-300 border border-brand-500/30">
-              CPA-SRS-001 Verified
-            </span>
-            <span className="text-[11px] text-slate-400 font-mono">
-              Completed in {review.durationSeconds}s (P95 SLA)
-            </span>
+          <div className="text-[11px] font-mono text-slate-500 uppercase tracking-wider mb-1">
+            SOCIETY_SYNC / CODE REVIEW
           </div>
-
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
-            <span>{review.repositoryName}</span>
-            <span className="text-xs font-mono font-normal px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 border border-slate-700">
-              branch: {review.branch}
-            </span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            AI Code Review
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Skill-Level Calibrated: <span className="text-brand-300 font-semibold capitalize">{review.skillLevel}</span> (FR-075) • Analyzed {review.totalFilesAnalyzed} files ({review.totalLinesOfCode} LOC)
+          <p className="text-xs text-slate-400 mt-0.5">
+            Multi-agent analysis • Last run today, 12 minutes ago
           </p>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2.5">
           <Link
-            href={`/chat/${review.repositoryId}`}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors"
+            href="/chat/repo-1"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#161f33] hover:bg-[#1f2c49] border border-[#22304d] text-xs font-semibold text-slate-200 transition-colors"
           >
-            <Terminal className="w-4 h-4 text-brand-400" />
-            <span>Repo AI Chat (FR-121)</span>
+            <Terminal className="w-3.5 h-3.5" />
+            <span>Ask AI</span>
           </Link>
 
           <button
-            onClick={() => setShowPdfModal(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-lg shadow-brand-600/30 transition-all"
+            onClick={() => alert('Re-running analysis on Society_Sync...')}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-semibold shadow-sm transition-colors"
           >
-            <FileText className="w-4 h-4" />
-            <span>Export Certified PDF (FR-211)</span>
+            <RotateCw className="w-3.5 h-3.5" />
+            <span>Run review</span>
           </button>
         </div>
       </div>
 
-      {/* Score Summary Banner */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-1 glass-card p-5 rounded-2xl border border-brand-500/40 text-center flex flex-col justify-center items-center bg-brand-950/20">
-          <span className="text-xs uppercase font-semibold text-slate-400 tracking-wider">Overall Health Score</span>
-          <div className="text-4xl font-black text-brand-400 mt-2">{review.scores.overall}</div>
-          <span className="text-[10px] text-slate-500 font-mono mt-1">/ 100 Index</span>
+      {/* Meta Pills Bar */}
+      <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#161f33] border border-[#22304d] text-slate-300">
+          <GitBranch className="w-3 h-3 text-slate-400" />
+          <span>main</span>
+        </span>
+        <span className="px-2.5 py-0.5 rounded-full bg-[#238636]/15 border border-[#238636]/40 text-[#3fb950] font-bold">
+          Completed
+        </span>
+        <span className="px-2.5 py-0.5 rounded-full bg-[#161f33] border border-[#22304d] text-slate-400">
+          Commit a84c91d
+        </span>
+        <span className="px-2.5 py-0.5 rounded-full bg-[#161f33] border border-[#22304d] text-slate-400">
+          42s runtime
+        </span>
+      </div>
+
+      {/* Multi-Agent Orchestration Bar (4 Agents in landscape) */}
+      <div className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-4">
+        <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider mb-3">
+          Multi-agent orchestration
         </div>
 
-        <div className="glass-card p-4 rounded-2xl border border-slate-800">
-          <span className="text-xs text-slate-400">Code Quality & Style</span>
-          <div className="text-2xl font-bold text-white mt-1">{review.scores.quality}%</div>
-          <p className="text-[10px] text-slate-500 mt-1 font-mono">SOLID & Maintainability</p>
-        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Agent 1 */}
+          <div className="p-3 rounded-lg bg-[#0a0f1d] border border-[#172138] space-y-1">
+            <div className="text-[10px] font-mono text-slate-500 uppercase">01 - INGESTION</div>
+            <div className="text-xs font-bold text-white">Repository Agent</div>
+            <div className="flex items-center gap-1 text-[11px] font-mono text-[#3fb950] pt-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#3fb950]"></span>
+              <span>Completed</span>
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono">320ms • 124 files</div>
+          </div>
 
-        <div className="glass-card p-4 rounded-2xl border border-slate-800">
-          <span className="text-xs text-slate-400">Security & Secrets</span>
-          <div className="text-2xl font-bold text-rose-400 mt-1">{review.scores.security}%</div>
-          <p className="text-[10px] text-slate-500 mt-1 font-mono">OWASP Top 10 Mapped</p>
-        </div>
+          {/* Agent 2 */}
+          <div className="p-3 rounded-lg bg-[#0a0f1d] border border-[#172138] space-y-1">
+            <div className="text-[10px] font-mono text-slate-500 uppercase">02 - QUALITY</div>
+            <div className="text-xs font-bold text-white">Quality Agent</div>
+            <div className="flex items-center gap-1 text-[11px] font-mono text-[#3fb950] pt-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#3fb950]"></span>
+              <span>Completed</span>
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono">1.2s • 8 findings</div>
+          </div>
 
-        <div className="glass-card p-4 rounded-2xl border border-slate-800">
-          <span className="text-xs text-slate-400">Reliability & Runtime</span>
-          <div className="text-2xl font-bold text-white mt-1">{review.scores.reliability}%</div>
-          <p className="text-[10px] text-slate-500 mt-1 font-mono">Async & Bug Patterns</p>
-        </div>
+          {/* Agent 3 */}
+          <div className="p-3 rounded-lg bg-[#0a0f1d] border border-[#172138] space-y-1">
+            <div className="text-[10px] font-mono text-slate-500 uppercase">03 - SECURITY</div>
+            <div className="text-xs font-bold text-white">Security Agent</div>
+            <div className="flex items-center gap-1 text-[11px] font-mono text-[#3fb950] pt-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#3fb950]"></span>
+              <span>Completed</span>
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono">2.4s • 3 findings</div>
+          </div>
 
-        <div className="glass-card p-4 rounded-2xl border border-slate-800">
-          <span className="text-xs text-slate-400">Documentation Coverage</span>
-          <div className="text-2xl font-bold text-white mt-1">{review.scores.documentation}%</div>
-          <p className="text-[10px] text-slate-500 mt-1 font-mono">README & JSDoc Health</p>
+          {/* Agent 4 */}
+          <div className="p-3 rounded-lg bg-[#0a0f1d] border border-[#172138] space-y-1">
+            <div className="text-[10px] font-mono text-slate-500 uppercase">04 - DOCUMENTATION</div>
+            <div className="text-xs font-bold text-white">Documentation Agent</div>
+            <div className="flex items-center gap-1 text-[11px] font-mono text-[#3fb950] pt-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#3fb950]"></span>
+              <span>Completed</span>
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono">600ms • 5 suggestions</div>
+          </div>
         </div>
       </div>
 
-      {/* Multi-Agent Orchestration Pipeline (FR-071) */}
-      <MultiAgentPipeline agents={review.agents} />
+      {/* 5 Score Cards Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+        <div className="p-4 rounded-xl bg-[#0e1424] border border-[#1c2438]">
+          <span className="text-[10px] font-mono text-slate-400 uppercase">Overall health</span>
+          <div className="text-3xl font-extrabold text-[#3fb950] mt-1 font-mono">92</div>
+          <span className="text-[10px] text-slate-500 font-mono">/100</span>
+        </div>
 
-      {/* Section Tabs */}
-      <div className="flex border-b border-slate-800">
-        <button
-          onClick={() => setActiveTab('findings')}
-          className={`flex items-center gap-2 px-5 py-3 text-xs font-semibold border-b-2 transition-colors ${
-            activeTab === 'findings'
-              ? 'border-brand-500 text-brand-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Sparkles className="w-4 h-4" />
-          <span>All Findings ({review.findings.length})</span>
-        </button>
+        <div className="p-4 rounded-xl bg-[#0e1424] border border-[#1c2438]">
+          <span className="text-[10px] font-mono text-slate-400 uppercase">Code quality</span>
+          <div className="text-3xl font-extrabold text-[#58a6ff] mt-1 font-mono">94%</div>
+        </div>
 
-        <button
-          onClick={() => setActiveTab('security')}
-          className={`flex items-center gap-2 px-5 py-3 text-xs font-semibold border-b-2 transition-colors ${
-            activeTab === 'security'
-              ? 'border-brand-500 text-brand-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <ShieldCheck className="w-4 h-4" />
-          <span>OWASP & Secrets ({securityFindings.length})</span>
-        </button>
+        <div className="p-4 rounded-xl bg-[#0e1424] border border-[#1c2438]">
+          <span className="text-[10px] font-mono text-slate-400 uppercase">OWASP security</span>
+          <div className="text-3xl font-extrabold text-[#58a6ff] mt-1 font-mono">82%</div>
+        </div>
 
-        <button
-          onClick={() => setActiveTab('docs')}
-          className={`flex items-center gap-2 px-5 py-3 text-xs font-semibold border-b-2 transition-colors ${
-            activeTab === 'docs'
-              ? 'border-brand-500 text-brand-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <BookOpen className="w-4 h-4" />
-          <span>Documentation Agent (FR-151, FR-152)</span>
-        </button>
+        <div className="p-4 rounded-xl bg-[#0e1424] border border-[#1c2438]">
+          <span className="text-[10px] font-mono text-slate-400 uppercase">Reliability</span>
+          <div className="text-3xl font-extrabold text-[#58a6ff] mt-1 font-mono">90%</div>
+        </div>
 
-        <button
-          onClick={() => setActiveTab('summary')}
-          className={`flex items-center gap-2 px-5 py-3 text-xs font-semibold border-b-2 transition-colors ${
-            activeTab === 'summary'
-              ? 'border-brand-500 text-brand-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          <span>Executive Summary</span>
-        </button>
+        <div className="p-4 rounded-xl bg-[#0e1424] border border-[#1c2438]">
+          <span className="text-[10px] font-mono text-slate-400 uppercase">Documentation</span>
+          <div className="text-3xl font-extrabold text-[#3fb950] mt-1 font-mono">96%</div>
+        </div>
       </div>
 
-      {/* Tab 1: Findings List */}
-      {activeTab === 'findings' && (
-        <div className="space-y-4">
-          {/* Severity Filter Toolbar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-            <div className="flex items-center gap-1.5 text-xs text-slate-400">
-              <Filter className="w-3.5 h-3.5 text-brand-400" />
-              <span>Filter by Severity:</span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5">
-              {['all', 'critical', 'high', 'medium', 'low'].map((sev) => (
-                <button
-                  key={sev}
-                  onClick={() => setSelectedSeverity(sev)}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition-colors ${
-                    selectedSeverity === sev
-                      ? 'bg-brand-600 text-white'
-                      : 'bg-slate-800 text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {sev}
-                </button>
-              ))}
-            </div>
+      {/* Findings Section */}
+      <div className="space-y-4">
+        {/* Section Header & Filters */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 gap-3">
+          <div className="text-sm font-bold text-white font-mono uppercase tracking-wider">
+            Findings • 7 open issues
           </div>
 
-          <div className="space-y-4">
-            {filteredFindings.map((finding) => (
-              <FindingCard
-                key={finding.id}
-                finding={finding}
-                repositoryId={review.repositoryId}
-              />
-            ))}
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedSeverity}
+              onChange={(e) => setSelectedSeverity(e.target.value)}
+              className="px-2.5 py-1.5 rounded-md bg-[#161f33] border border-[#22304d] text-xs font-mono text-slate-200 focus:outline-none"
+            >
+              <option value="all">All severities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+            </select>
+
+            <Link
+              href="/report/rev-1"
+              className="px-3 py-1.5 rounded-md bg-[#161f33] hover:bg-[#1f2c49] border border-[#22304d] text-xs font-medium text-slate-200 transition-colors"
+            >
+              Export report
+            </Link>
           </div>
         </div>
-      )}
 
-      {/* Tab 2: OWASP & Security Scan (FR-191, FR-192, FR-193) */}
-      {activeTab === 'security' && (
-        <div className="space-y-6">
-          <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
-            <div className="flex items-center gap-2 text-rose-400">
-              <AlertTriangle className="w-5 h-5" />
-              <h3 className="text-base font-bold text-white">
-                OWASP Top 10 Security Audit & Secrets Detection (FR-191, FR-192)
-              </h3>
+        {/* Finding Card 1: SQL Injection (Critical) */}
+        <div className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-full bg-[#da3633]/20 border border-[#da3633]/40 text-[#ff7b72] text-[10px] font-mono font-bold">
+                Critical
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-[#161f33] border border-[#22304d] text-slate-300 text-[10px] font-mono">
+                Security
+              </span>
+              <span className="text-[10px] font-mono text-slate-500">CPAI-001</span>
             </div>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Every flagged security vulnerability maps to canonical OWASP classes so students and engineering teams learn standard threat models rather than superficial symptoms.
+            <span className="text-[10px] font-mono text-slate-400">Confidence 98%</span>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-bold text-white">
+              Potential SQL injection in authentication query
+            </h3>
+            <div className="text-[11px] font-mono text-[#58a6ff] mt-0.5">
+              src/middleware/auth.ts:18-24
+            </div>
+          </div>
+
+          {/* Diff Box */}
+          <div className="rounded-lg bg-[#070a12] border border-[#172033] p-3 text-xs font-mono text-slate-300 space-y-1">
+            <div className="text-slate-500">18   const query = &apos;SELECT * FROM users</div>
+            <div className="bg-[#da3633]/20 text-[#ff7b72] px-1 rounded">
+              19 -   WHERE email = &quot;${`{email}`}&quot;&apos;;
+            </div>
+            <div className="text-slate-500">20   db.execute(query);</div>
+          </div>
+
+          {/* Senior Engineer Explanation */}
+          <div className="p-3.5 rounded-lg bg-[#0b101d] border border-[#1c2438] text-xs space-y-1">
+            <div className="text-[11px] font-bold text-[#e3b341] font-mono uppercase tracking-wider">
+              Senior Engineer Explanation
+            </div>
+            <p className="text-slate-300 leading-relaxed text-[11.5px]">
+              Directly interpolating user-controlled input into a SQL statement can allow an attacker to modify the query. Use parameterized queries to keep data separate from executable SQL.
             </p>
           </div>
 
-          <div className="space-y-4">
-            {securityFindings.map((finding) => (
-              <FindingCard
-                key={finding.id}
-                finding={finding}
-                repositoryId={review.repositoryId}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Tab 3: Documentation Agent (FR-151, FR-152) */}
-      {activeTab === 'docs' && (
-        <div className="space-y-6">
-          {/* README Draft Section (FR-151) */}
-          <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
-            <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-800 gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-brand-400" />
-                  <span>Auto-Drafted Production README (FR-151)</span>
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Generated from repository AST structure, routes, and dependency manifest.
-                </p>
+          {/* Suggested fix - Parameterized query */}
+          <div className="p-3.5 rounded-lg bg-[#0b101d] border border-[#1c2438] text-xs space-y-2">
+            <div className="text-[11px] font-bold text-[#3fb950] font-mono uppercase tracking-wider">
+              Suggested fix - Parameterized query
+            </div>
+            <div className="rounded-lg bg-[#070a12] border border-[#172033] p-3 text-xs font-mono space-y-1">
+              <div className="bg-[#da3633]/20 text-[#ff7b72] px-1 rounded">
+                19 -   WHERE email = &quot;${`{email}`}&quot;&apos;;
               </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleCopyReadme}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors"
-                >
-                  {copiedReadme ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copiedReadme ? 'Copied Markdown' : 'Copy Markdown'}
-                </button>
-                <button
-                  onClick={handleDownloadReadme}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-medium transition-colors"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download README.md</span>
-                </button>
+              <div className="bg-[#238636]/20 text-[#3fb950] px-1 rounded">
+                19 +   WHERE email = ?;
+              </div>
+              <div className="bg-[#238636]/20 text-[#3fb950] px-1 rounded">
+                20 +   db.execute(query, [email]);
               </div>
             </div>
-
-            <pre className="p-4 rounded-xl bg-dark-900 border border-slate-800 text-xs font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap leading-relaxed">
-              {review.readmeDraft || '# README Generated'}
-            </pre>
           </div>
 
-          {/* Inline Comment Suggestions (FR-152) */}
-          {review.inlineDocSuggestions && review.inlineDocSuggestions.length > 0 && (
-            <div className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
-              <div>
-                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-brand-400" />
-                  <span>Suggested Inline JSDoc / Docstrings (FR-152)</span>
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  High-complexity public functions and interfaces lacking descriptive contract comments.
-                </p>
-              </div>
+          {/* Bottom Actions */}
+          <div className="pt-2 border-t border-[#172033] flex flex-wrap items-center justify-between gap-3">
+            <span className="px-2 py-0.5 rounded-full bg-[#f0883e]/15 border border-[#f0883e]/30 text-[#f0883e] text-[10px] font-mono">
+              A03:2021 - Injection
+            </span>
 
-              <div className="space-y-3">
-                {review.inlineDocSuggestions.map((item, idx) => (
-                  <div key={idx} className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-xs font-mono">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-brand-300 font-bold">{item.functionName}()</span>
-                      <span className="text-slate-500">{item.file}:L{item.line}</span>
-                    </div>
-                    <pre className="text-slate-300 text-[11px] bg-slate-950 p-3 rounded-lg overflow-x-auto">
-                      {item.suggestedDoc}
-                    </pre>
-                  </div>
-                ))}
-              </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleCopy('c1', 'const query = \'SELECT * FROM users WHERE email = ?\';\ndb.execute(query, [email]);')}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-[#161f33] hover:bg-[#1f2c49] border border-[#22304d] text-xs font-medium text-slate-200 transition-colors"
+              >
+                {copiedId === 'c1' ? <Check className="w-3.5 h-3.5 text-[#3fb950]" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedId === 'c1' ? 'Copied' : 'Copy fix'}</span>
+              </button>
+
+              <Link
+                href="/chat/repo-1?findingId=CPAI-001"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-[#161f33] hover:bg-[#1f2c49] border border-[#22304d] text-xs font-medium text-slate-200 transition-colors"
+              >
+                <span>Ask AI about finding</span>
+              </Link>
             </div>
-          )}
+          </div>
         </div>
-      )}
 
-      {/* Tab 4: Executive Summary */}
-      {activeTab === 'summary' && (
-        <div className="glass-panel p-6 sm:p-8 rounded-2xl border border-slate-800 space-y-5">
-          <h3 className="text-base font-bold text-white">Staff Engineer Executive Summary</h3>
-          <p className="text-xs leading-relaxed text-slate-300 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
-            {review.executiveSummary}
-          </p>
+        {/* Finding Card 2: Ownership Validation (High) */}
+        <div className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-full bg-[#f0883e]/20 border border-[#f0883e]/40 text-[#f0883e] text-[10px] font-mono font-bold">
+                High
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-[#161f33] border border-[#22304d] text-slate-300 text-[10px] font-mono">
+                Access Control
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-slate-400">Confidence 94%</span>
+          </div>
 
-          <div className="pt-4 border-t border-slate-800 flex justify-end">
-            <button
-              onClick={() => setShowPdfModal(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold"
+          <div>
+            <h3 className="text-sm font-bold text-white">
+              Missing ownership validation in resident endpoint
+            </h3>
+            <div className="text-[11px] font-mono text-[#58a6ff] mt-0.5">
+              src/api/residents/[id].ts:42-47
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-[#070a12] border border-[#172033] p-3 text-xs font-mono space-y-1">
+            <div className="bg-[#da3633]/20 text-[#ff7b72] px-1 rounded">
+              - const resident = await getResident(req.param.id);
+            </div>
+            <div className="bg-[#238636]/20 text-[#3fb950] px-1 rounded">
+              + const resident = await getResidentForSociety(req.param.id, user.societyId);
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-lg bg-[#0b101d] border border-[#1c2438] text-xs space-y-1">
+            <div className="text-[11px] font-bold text-[#e3b341] font-mono uppercase tracking-wider">
+              Senior Engineer Explanation
+            </div>
+            <p className="text-slate-300 leading-relaxed text-[11.5px]">
+              Authentication alone does not prove that a user is authorized to access a particular resident record. Enforce tenant and resource ownership checks.
+            </p>
+          </div>
+
+          <div className="pt-2 border-t border-[#172033] flex flex-wrap items-center justify-between gap-3">
+            <span className="px-2 py-0.5 rounded-full bg-[#f0883e]/15 border border-[#f0883e]/30 text-[#f0883e] text-[10px] font-mono">
+              A01:2021 - Broken Access Control
+            </span>
+
+            <Link
+              href="/chat/repo-1?findingId=CPAI-002"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-[#161f33] hover:bg-[#1f2c49] border border-[#22304d] text-xs font-medium text-slate-200 transition-colors"
             >
-              <Download className="w-4 h-4" />
-              <span>Export Executive Summary to Certified PDF</span>
-            </button>
+              <span>Ask AI about finding</span>
+            </Link>
           </div>
         </div>
-      )}
 
-      {/* PDF Export & Share Modal (FR-211, FR-212, FR-213) */}
-      <PdfExportModal
-        review={review}
-        isOpen={showPdfModal}
-        onClose={() => setShowPdfModal(false)}
-      />
+        {/* Finding Card 3: Unbounded Query (Medium) */}
+        <div className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-full bg-[#e3b341]/20 border border-[#e3b341]/40 text-[#e3b341] text-[10px] font-mono font-bold">
+                Medium
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-slate-400">Confidence 89%</span>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-bold text-white">
+              Unbounded database query in activity history
+            </h3>
+            <div className="text-[11px] font-mono text-[#58a6ff] mt-0.5">
+              src/services/activity.ts:61-64
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-lg bg-[#0b101d] border border-[#1c2438] text-xs space-y-1">
+            <div className="text-[11px] font-bold text-[#e3b341] font-mono uppercase tracking-wider">
+              Senior Engineer Explanation
+            </div>
+            <p className="text-slate-300 leading-relaxed text-[11.5px]">
+              Loading all historical records can cause performance degradation as the system grows. Introduce pagination and a bounded result size.
+            </p>
+          </div>
+
+          <div className="pt-2 border-t border-[#172033] flex flex-wrap items-center justify-between gap-3">
+            <span className="px-2 py-0.5 rounded-full bg-[#161f33] border border-[#22304d] text-slate-400 text-[10px] font-mono">
+              Performance • Reliability
+            </span>
+
+            <Link
+              href="/chat/repo-1?findingId=CPAI-003"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-[#161f33] hover:bg-[#1f2c49] border border-[#22304d] text-xs font-medium text-slate-200 transition-colors"
+            >
+              <span>Ask AI about finding</span>
+            </Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

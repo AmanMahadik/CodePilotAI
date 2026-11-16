@@ -1,153 +1,201 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
-import { 
-  Bot, 
-  HelpCircle, 
-  Sparkles, 
-  ArrowLeft, 
-  CheckCircle2, 
-  Send, 
-  Loader2, 
-  Award,
-  Terminal
-} from 'lucide-react';
+import { HelpCircle, CheckCircle2, ArrowRight, Loader2, Award } from 'lucide-react';
 
-export default function MockInterviewPage() {
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+export default function TechnicalInterviewPage() {
   const [answer, setAnswer] = useState('');
+  const [submitted, setSubmitted] = useState(false);
   const [evaluating, setEvaluating] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
 
-  const questions = [
-    {
-      q: 'In your checkout controller, how do you handle idempotency when a network timeout occurs during payment gateway calls?',
-      context: 'Based on src/adapters/payment.adapter.ts and src/services/order.service.ts',
-      tip: 'Mention idempotency keys, database transaction locks, and outbox patterns.',
-    },
-    {
-      q: 'You had an async function passed to Array.prototype.forEach in order.service.ts. Why does that cause silent race conditions?',
-      context: 'Based on Finding #find-103',
-      tip: 'Explain event loop microtask queues and why Promise.all or for-of is preferred.',
-    },
-    {
-      q: 'How would you defend your application against the SQL injection finding detected in your product catalog search?',
-      context: 'Based on Finding #find-102 (OWASP A03)',
-      tip: 'Discuss parameterized queries, AST lexical analysis, and why Prisma type-safety prevents injection.',
-    },
-  ];
-
-  const handleEvaluateAnswer = () => {
+  const handleSubmit = () => {
     if (!answer.trim()) return;
     setEvaluating(true);
     setTimeout(() => {
       setEvaluating(false);
-      setFeedback(
-        'Staff Engineer Evaluation: Strong answer! You correctly identified the underlying architectural pattern and explained the failure mode clearly. In an actual technical interview at Stripe or Amazon, highlighting the trade-off between database locks vs idempotency token caching in Redis would elevate your response to Senior/Staff level.'
-      );
-    }, 1500);
+      setSubmitted(true);
+    }, 1200);
   };
 
   const handleNext = () => {
     setAnswer('');
-    setFeedback(null);
-    setCurrentQuestionIndex((prev) => (prev + 1) % questions.length);
+    setSubmitted(false);
   };
 
-  const currentQ = questions[currentQuestionIndex];
-
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/dashboard"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-white tracking-tight">
-                Mock Technical Interview Simulator
-              </h1>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30">
-                Phase 2 • FR-331
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Technical interview questions grounded directly in your repository&apos;s architecture and code choices.
-            </p>
-          </div>
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Top Header */}
+      <div>
+        <div className="text-[11px] font-mono text-slate-500 uppercase tracking-wider mb-1">
+          PHASE 2 / LEARNING &amp; DEVELOPMENT
         </div>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+          Technical interview simulator
+        </h1>
+        <p className="text-xs text-slate-400 mt-0.5">
+          Practice engineering interviews using your own repository as context.
+        </p>
 
-        <div className="text-xs font-mono text-slate-400">
-          Question {currentQuestionIndex + 1} of {questions.length}
+        <div className="mt-2.5">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#8957e5]/20 text-[#a371f7] border border-[#8957e5]/30 text-xs font-mono font-medium">
+            <span>🔮</span>
+            <span>Phase 2 Preview</span>
+          </span>
         </div>
       </div>
 
-      {/* Question Card */}
-      <div className="glass-panel p-6 sm:p-8 rounded-2xl border border-slate-800 space-y-4">
-        <div className="flex items-center gap-2 text-brand-400 text-xs font-semibold">
-          <HelpCircle className="w-4 h-4" />
-          <span>Staff Engineer Interviewer Question</span>
-        </div>
+      {/* Landscape Two-Column Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        {/* Left Column (8 cols): Interview Session */}
+        <div className="lg:col-span-8 rounded-xl bg-[#0e1424] border border-[#1c2438] p-6 space-y-5">
+          <div className="flex items-center justify-between pb-3 border-b border-[#1c2438]">
+            <h3 className="text-xs font-bold text-white font-mono uppercase tracking-wider">
+              Interview session
+            </h3>
+            <span className="flex items-center gap-1.5 text-xs font-mono text-[#3fb950]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#3fb950] animate-pulse"></span>
+              <span>Ready</span>
+            </span>
+          </div>
 
-        <h3 className="text-lg font-bold text-white leading-snug">{currentQ.q}</h3>
-        <p className="text-xs font-mono text-slate-400 bg-slate-900/60 p-3 rounded-lg border border-slate-800">
-          Context: {currentQ.context}
-        </p>
+          <div className="text-[10px] font-mono text-slate-400">
+            CONTEXT • SOCIETY_SYNC / src/middleware/auth.ts
+          </div>
 
-        {/* Tip */}
-        <div className="p-3 rounded-lg bg-amber-950/20 border border-amber-900/40 text-xs text-amber-200">
-          <span className="font-semibold text-amber-400 block mb-0.5">Interviewer Pro-Tip:</span>
-          {currentQ.tip}
-        </div>
-
-        {/* Student Answer Textarea */}
-        <div className="pt-2">
-          <label className="block text-xs font-medium text-slate-300 mb-1.5">
-            Your Spoken/Written Answer:
-          </label>
-          <textarea
-            rows={5}
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            placeholder="Type your explanation as you would explain it to a senior interviewer..."
-            className="w-full p-4 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs leading-relaxed focus:outline-none focus:border-brand-500"
-          />
-        </div>
-
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            onClick={handleEvaluateAnswer}
-            disabled={!answer.trim() || evaluating}
-            className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold shadow-lg shadow-brand-600/30 transition-all disabled:opacity-50"
-          >
-            {evaluating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Award className="w-4 h-4" />}
-            <span>{evaluating ? 'Evaluating with AI Staff Rubric...' : 'Submit Answer for Feedback'}</span>
-          </button>
-        </div>
-
-        {/* Feedback Display */}
-        {feedback && (
-          <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-900/50 text-xs space-y-3 animate-fade-in">
-            <div className="flex items-center gap-2 text-emerald-400 font-bold">
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Interviewer Feedback & Score</span>
+          {/* Question Box */}
+          <div className="p-4 rounded-lg bg-[#0a0f1d] border-l-2 border-[#8957e5] border-t border-r border-b border-[#1c2438] space-y-2.5">
+            <div className="text-[10px] font-bold text-[#a371f7] font-mono uppercase tracking-wider">
+              AI INTERVIEWER • BACKEND ENGINEERING
             </div>
-            <p className="text-slate-200 leading-relaxed">{feedback}</p>
-            <div className="flex justify-end">
+            <p className="text-sm font-semibold text-white leading-relaxed">
+              I noticed that your authentication middleware constructs a SQL query using an email value. Can you explain the security risk associated with this implementation, and how you would redesign it to prevent an injection attack?
+            </p>
+            <div className="text-[10px] font-mono text-slate-500">
+              Question 01 • Security fundamentals • Medium difficulty
+            </div>
+          </div>
+
+          {/* Student Answer */}
+          <div className="space-y-2">
+            <label className="block text-xs font-bold text-white font-mono uppercase tracking-wider">
+              Your answer
+            </label>
+            <textarea
+              rows={6}
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              placeholder="Explain your approach as if you were answering an interviewer..."
+              className="w-full p-3.5 rounded-lg bg-[#070a12] border border-[#1c2438] text-xs text-white placeholder:text-slate-500 font-mono leading-relaxed focus:outline-none focus:border-[#388bfd]"
+            />
+          </div>
+
+          {/* Action Row */}
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-[11px] text-slate-400 font-mono">
+              Take your time. Structure your answer.
+            </span>
+            <button
+              onClick={handleSubmit}
+              disabled={!answer.trim() || evaluating}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-md bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-semibold shadow-sm transition-colors disabled:opacity-50"
+            >
+              {evaluating ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              <span>{evaluating ? 'Evaluating...' : 'Submit answer →'}</span>
+            </button>
+          </div>
+
+          {/* Evaluator Feedback if submitted */}
+          {submitted && (
+            <div className="p-4 rounded-lg bg-[#0a0f1d] border border-[#238636]/40 text-xs space-y-2 animate-fade-in">
+              <div className="flex items-center gap-1.5 text-[#3fb950] font-bold font-mono">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Interviewer Evaluation (Passed: 89/100)</span>
+              </div>
+              <p className="text-slate-300 leading-relaxed text-[11.5px]">
+                Strong answer. You accurately identified that directly interpolating input alters SQL syntax trees, and you correctly recommended prepared statements and ORM parameterized query builders to maintain cryptographic boundaries.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Right Column (4 cols): Evaluation Rubric & Session Settings */}
+        <div className="lg:col-span-4 space-y-4">
+          {/* Rubric Card */}
+          <div className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-5 space-y-4">
+            <div>
+              <h3 className="text-xs font-bold text-white font-mono uppercase tracking-wider">
+                Evaluation rubric
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Your answer will be evaluated across:
+              </p>
+            </div>
+
+            {/* Rubric Bars */}
+            <div className="space-y-3 font-mono text-xs">
+              <div>
+                <div className="flex items-center justify-between text-slate-300 mb-1">
+                  <span>Technical accuracy</span>
+                  <span className="font-bold text-white">/ 40</span>
+                </div>
+                <div className="w-full h-1.5 bg-[#162032] rounded-full overflow-hidden">
+                  <div className="w-[85%] h-full bg-[#8957e5] rounded-full"></div>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between text-slate-300 mb-1">
+                  <span>Problem solving</span>
+                  <span className="font-bold text-white">/ 25</span>
+                </div>
+                <div className="w-full h-1.5 bg-[#162032] rounded-full overflow-hidden">
+                  <div className="w-[75%] h-full bg-[#58a6ff] rounded-full"></div>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between text-slate-300 mb-1">
+                  <span>Communication</span>
+                  <span className="font-bold text-white">/ 20</span>
+                </div>
+                <div className="w-full h-1.5 bg-[#162032] rounded-full overflow-hidden">
+                  <div className="w-[85%] h-full bg-[#3fb950] rounded-full"></div>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between text-slate-300 mb-1">
+                  <span>Best practices</span>
+                  <span className="font-bold text-white">/ 15</span>
+                </div>
+                <div className="w-full h-1.5 bg-[#162032] rounded-full overflow-hidden">
+                  <div className="w-[70%] h-full bg-[#e3b341] rounded-full"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Session Settings Card */}
+          <div className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-5 space-y-3 text-xs font-mono">
+            <h4 className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+              SESSION SETTINGS
+            </h4>
+            <div className="space-y-1.5">
+              <div className="text-slate-300">Repository: <span className="text-white font-semibold">Society_Sync</span></div>
+              <div className="text-slate-300">Level: <span className="text-white font-semibold">Intermediate</span></div>
+              <div className="text-slate-300">Format: <span className="text-white font-semibold">Technical Q&amp;A</span></div>
+            </div>
+
+            <div className="pt-2">
               <button
                 onClick={handleNext}
-                className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-brand-300 text-xs font-medium border border-slate-700"
+                className="w-full py-2 rounded-md bg-[#161f33] hover:bg-[#1f2c49] border border-[#22304d] text-xs font-semibold text-slate-200 transition-colors"
               >
-                Next Question →
+                Next question →
               </button>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
