@@ -2,9 +2,14 @@
 
 import React, { useState } from 'react';
 import { Download, Check, Copy, School, ShieldCheck } from 'lucide-react';
+import { useAuth } from '@/lib/supabase/auth-context';
 
 export default function InstitutionalReportPage() {
+  const { user } = useAuth();
   const [includeHeader, setIncludeHeader] = useState(true);
+  const [institution, setInstitution] = useState(user?.user_metadata?.institution || 'MIT Academy of Engineering, Pune');
+  const [candidateName, setCandidateName] = useState(user?.user_metadata?.full_name || 'Engineering Student / Author');
+  const [referenceId, setReferenceId] = useState('REF-2026-001');
   const [copied, setCopied] = useState(false);
 
   const handleCopyLink = () => {
@@ -69,15 +74,34 @@ export default function InstitutionalReportPage() {
           <span>Include institutional header</span>
         </label>
 
-        {/* Identity Box */}
-        <div className="p-3.5 rounded-lg bg-[#0a0f1d] border border-[#172138] space-y-1 font-mono text-xs">
-          <div className="text-[10px] text-slate-500 uppercase">Report identity</div>
-          <div className="font-bold text-white">MIT Academy of Engineering, Pune</div>
-          <div className="text-slate-400 text-[11px]">
-            Aman Atmaram Mahadik • PRN: 202502100006
+        {/* Identity Customization */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs font-mono">
+          <div>
+            <label className="block text-[10px] text-slate-500 uppercase mb-1">Institution</label>
+            <input
+              type="text"
+              value={institution}
+              onChange={(e) => setInstitution(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded bg-[#0a0f1d] border border-[#172138] text-white text-xs font-mono"
+            />
           </div>
-          <div className="text-slate-400 text-[11px]">
-            Roll No: 68 • Batch B3
+          <div>
+            <label className="block text-[10px] text-slate-500 uppercase mb-1">Candidate / Author</label>
+            <input
+              type="text"
+              value={candidateName}
+              onChange={(e) => setCandidateName(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded bg-[#0a0f1d] border border-[#172138] text-white text-xs font-mono"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] text-slate-500 uppercase mb-1">Student / Reference ID</label>
+            <input
+              type="text"
+              value={referenceId}
+              onChange={(e) => setReferenceId(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded bg-[#0a0f1d] border border-[#172138] text-white text-xs font-mono"
+            />
           </div>
         </div>
       </div>
@@ -87,10 +111,10 @@ export default function InstitutionalReportPage() {
         {includeHeader && (
           <div className="text-center pb-6 border-b border-slate-300 space-y-1">
             <h2 className="text-base font-extrabold uppercase tracking-widest text-slate-900">
-              MIT Academy of Engineering, Pune
+              {institution}
             </h2>
             <div className="text-[11px] font-mono text-slate-600 font-semibold uppercase tracking-wider">
-              Computer Engineering • Software Engineering
+              Author: {candidateName} • ID: {referenceId}
             </div>
             <h3 className="text-lg font-black text-slate-900 pt-2 tracking-tight">
               SOFTWARE ENGINEERING QUALITY &amp; SECURITY ASSESSMENT

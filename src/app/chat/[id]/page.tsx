@@ -27,14 +27,17 @@ interface ChatItem {
   };
 }
 
+import { useAuth } from '@/lib/supabase/auth-context';
+
 export default function TerminalAIPage() {
+  const { user } = useAuth();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatItem[]>([
     {
       role: 'assistant',
       author: 'CodePilot AI • Repository Agent',
       content:
-        "Hello Aman! I've indexed the Society_Sync repository. I can explain its architecture, inspect code, investigate findings, and suggest refactors.",
+        "Hello! I've indexed the repository. I can explain its architecture, inspect code, investigate findings, and suggest refactors.",
       context: {
         file: 'src/middleware/auth.ts',
         lines: '18-24',
@@ -50,7 +53,7 @@ export default function TerminalAIPage() {
 
     const newMsg: ChatItem = {
       role: 'user',
-      author: 'Aman Mahadik',
+      author: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Developer',
       content: text,
       context: undefined,
     };

@@ -358,11 +358,11 @@ export async function runMultiAgentReview(
     shareToken: `cp-${Math.random().toString(36).substring(2, 10)}`,
     institutionBranding: brandingInfo || {
       enabled: true,
-      institutionName: 'MIT Academy of Engineering, Alandi (D.), Pune',
+      institutionName: 'University Department of Computer Engineering',
       department: 'Department of Computer Engineering',
-      batch: 'Batch B3 (Roll No: 68)',
-      studentName: 'Aman Atmaram Mahadik',
-      rollNo: '202502100006',
+      batch: 'Batch B3',
+      studentName: 'Engineering Developer',
+      rollNo: 'DEV-001',
     },
     readmeDraft: `# ${repoName}
 

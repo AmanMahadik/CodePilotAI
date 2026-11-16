@@ -3,15 +3,18 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { Plus, GitBranch, ArrowRight, ExternalLink } from 'lucide-react';
+import { useAuth } from '@/lib/supabase/auth-context';
 
 export default function RepositoriesPage() {
+  const { user } = useAuth();
   const [activeFilter, setActiveFilter] = useState<'all' | 'connected' | 'languages'>('all');
+  const repoOwner = user?.user_metadata?.user_name || user?.email?.split('@')[0] || 'workspace';
 
   const repos = [
     {
       id: 'repo-1',
       name: 'Society_Sync',
-      owner: 'amanmahadik',
+      owner: repoOwner,
       repoName: 'Society_Sync',
       language: 'TypeScript',
       langColor: '#58a6ff',
@@ -24,7 +27,7 @@ export default function RepositoriesPage() {
     {
       id: 'repo-2',
       name: 'Hyperlocal-Civic',
-      owner: 'amanmahadik',
+      owner: repoOwner,
       repoName: 'civic-reporter',
       language: 'JavaScript',
       langColor: '#f0883e',
@@ -37,7 +40,7 @@ export default function RepositoriesPage() {
     {
       id: 'repo-3',
       name: 'Campus-Connect',
-      owner: 'amanmahadik',
+      owner: repoOwner,
       repoName: 'campus-connect',
       language: 'Java',
       langColor: '#d29922',
@@ -50,7 +53,7 @@ export default function RepositoriesPage() {
     {
       id: 'repo-4',
       name: 'Energy-Saver',
-      owner: 'amanmahadik',
+      owner: repoOwner,
       repoName: 'energy-saver',
       language: 'TypeScript',
       langColor: '#58a6ff',

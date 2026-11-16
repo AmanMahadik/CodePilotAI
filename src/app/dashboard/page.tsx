@@ -16,12 +16,17 @@ import {
   GitBranch,
   Search
 } from 'lucide-react';
+import { useAuth } from '@/lib/supabase/auth-context';
 
 export default function OverviewDashboardPage() {
+  const { user } = useAuth();
+  const firstName = user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Developer';
+  const repoOwner = user?.user_metadata?.user_name || user?.email?.split('@')[0] || 'workspace';
+
   const repositories = [
     {
       name: 'Society_Sync',
-      owner: 'amanmahadik',
+      owner: repoOwner,
       repo: 'Society_Sync',
       branch: 'main',
       score: '92 / 100',
@@ -31,7 +36,7 @@ export default function OverviewDashboardPage() {
     },
     {
       name: 'Hyperlocal-Civic',
-      owner: 'amanmahadik',
+      owner: repoOwner,
       repo: 'civic-reporter',
       branch: 'main',
       score: '78 / 100',
@@ -41,7 +46,7 @@ export default function OverviewDashboardPage() {
     },
     {
       name: 'Campus-Connect',
-      owner: 'amanmahadik',
+      owner: repoOwner,
       repo: 'campus-connect',
       branch: 'develop',
       score: '88 / 100',
@@ -51,7 +56,7 @@ export default function OverviewDashboardPage() {
     },
     {
       name: 'Energy-Saver',
-      owner: 'amanmahadik',
+      owner: repoOwner,
       repo: 'energy-saver',
       branch: 'main',
       score: '85 / 100',
@@ -70,11 +75,11 @@ export default function OverviewDashboardPage() {
             WORKSPACE / OVERVIEW
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
-            <span>Good evening, Aman</span>
+            <span>Good evening, {firstName}</span>
             <span>👋</span>
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Your engineering workspace at a glance.
+            {user ? 'Your engineering workspace at a glance.' : 'Connect your repositories to begin automated code review.'}
           </p>
         </div>
 

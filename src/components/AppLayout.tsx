@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   LayoutGrid, 
   FolderGit2, 
@@ -17,20 +17,39 @@ import {
   Command, 
   MoreHorizontal,
   Bot,
-  School
+  School,
+  LogOut,
+  User as UserIcon
 } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { useAuth } from '@/lib/supabase/auth-context';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user, role } = useAuth();
+  const router = useRouter();
+  const { user, role, signOut } = useAuth();
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
   const isCurrent = (path: string) => {
     if (path === '/dashboard' && (pathname === '/' || pathname === '/dashboard')) return true;
     if (path !== '/dashboard' && pathname.startsWith(path)) return true;
     return false;
   };
+
+  // Helper to extract clean initials from user object
+  const getInitials = () => {
+    if (!user) return '';
+    const fullName = user.user_metadata?.full_name;
+    if (fullName) {
+      const parts = fullName.trim().split(' ');
+      if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+      return fullName.slice(0, 2).toUpperCase();
+    }
+    if (user.email) return user.email.slice(0, 2).toUpperCase();
+    return 'CP';
+  };
+
+  const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || '';
 
   return (
     <div className="min-h-screen bg-[#090d16] text-[#e6edf3] flex flex-col font-sans antialiased">
@@ -56,22 +75,76 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <span>3</span>
           </div>
 
-          {/* Sign in button */}
-          <Link
-            href="/auth/login"
-            className="px-3 py-1 rounded-md bg-[#161f33] hover:bg-[#1e2a45] border border-[#22304d] text-xs font-medium text-slate-200 transition-colors"
-          >
-            Sign in
-          </Link>
+          {/* Conditional Auth in Header */}
+          {user ? (
+            <div className="relative">
+              <button
+                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                className="flex items-center gap-2 pl-2 pr-2.5 py-1 rounded-full bg-[#161f33] hover:bg-[#1e2a45] border border-[#22304d] transition-colors"
+              >
+                {user.user_metadata?.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={user.user_metadata.avatar_url}
+                    alt="Avatar"
+                    className="w-6 h-6 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className={`w-6 h-6 rounded-full text-white flex items-center justify-center text-xs font-bold ${role === 'faculty' ? 'bg-[#238636]' : 'bg-[#1f6feb]'}`}>
+                    {getInitials()}
+                  </div>
+                )}
+                <span className="text-xs font-medium text-slate-200 max-w-[120px] truncate">
+                  {displayName}
+                </span>
+              </button>
 
-          {/* User avatar pill */}
-          <Link
-            href="/auth/login"
-            className="w-7 h-7 rounded-full bg-[#1f6feb] text-white flex items-center justify-center text-xs font-semibold hover:opacity-90 transition-opacity"
-            title="Aman Mahadik (Roll 68)"
-          >
-            AM
-          </Link>
+              {/* User Dropdown */}
+              {userDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 rounded-xl bg-[#0c101b] border border-[#1c2438] shadow-2xl p-2 z-50 text-xs font-mono">
+                  <div className="px-3 py-2 border-b border-[#1c2438] mb-1">
+                    <div className="font-semibold text-white truncate">{displayName}</div>
+                    <div className="text-[10px] text-slate-400 truncate">{user.email}</div>
+                    <span className={`inline-block mt-1 text-[9px] font-bold px-1.5 py-0.2 rounded border ${
+                      role === 'faculty' 
+                        ? 'bg-[#238636]/20 text-[#3fb950] border-[#238636]/40' 
+                        : 'bg-[#1f6feb]/20 text-[#58a6ff] border-[#1f6feb]/40'
+                    }`}>
+                      {role === 'faculty' ? 'Faculty Member' : 'Student Developer'}
+                    </span>
+                  </div>
+
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setUserDropdownOpen(false)}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-md text-slate-300 hover:bg-[#161f33] hover:text-white transition-colors"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Dashboard</span>
+                  </Link>
+
+                  <button
+                    onClick={() => {
+                      setUserDropdownOpen(false);
+                      signOut();
+                      router.push('/auth/login');
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-[#ff7b72] hover:bg-[#da3633]/15 transition-colors text-left"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign out</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <Link
+              href="/auth/login"
+              className="px-3.5 py-1 rounded-md bg-[#238636] hover:bg-[#2ea043] text-xs font-semibold text-white shadow-sm transition-colors"
+            >
+              Sign in
+            </Link>
+          )}
         </div>
       </header>
 
@@ -85,11 +158,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <Command className="w-3 h-3 text-slate-500" />
             </div>
 
-            {/* Current Project Card */}
+            {/* Current Project Card (Dynamic) */}
             <div className="p-2.5 rounded-lg bg-[#111728] border border-[#1e293b]">
               <div className="text-[10px] text-slate-400 font-mono uppercase">Current Project</div>
-              <div className="text-xs font-bold text-white mt-0.5">Aman&apos;s workspace</div>
-              <div className="text-[10px] text-slate-400 font-mono mt-0.5">Personal • Free demo</div>
+              <div className="text-xs font-bold text-white mt-0.5 truncate">
+                {user ? `${displayName}'s workspace` : 'Engineering Workspace'}
+              </div>
+              <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                {user ? `${role === 'faculty' ? 'Faculty Portal' : 'Student Workspace'} • Active` : 'Guest Session • Sign in to sync'}
+              </div>
             </div>
           </div>
 
@@ -196,7 +273,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {/* Section 2: REPORTS & LEARNING */}
             <div>
               <div className="px-2 text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                Reports & Learning
+                Reports &amp; Learning
               </div>
               <nav className="space-y-0.5">
                 <Link
@@ -250,24 +327,52 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* Sidebar Footer User Pill */}
+          {/* Sidebar Footer User Pill (Dynamic) */}
           <div className="p-3 border-t border-[#1c2438] space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className={`w-7 h-7 rounded-full text-white flex items-center justify-center text-xs font-bold ${role === 'faculty' ? 'bg-[#238636]' : 'bg-[#1f6feb]'}`}>
-                  {role === 'faculty' ? 'RS' : 'AM'}
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-white leading-tight">
-                    {user?.user_metadata?.full_name || (role === 'faculty' ? 'Prof. R. K. Sharma' : 'Aman Mahadik')}
+            {user ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 overflow-hidden">
+                  {user.user_metadata?.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={user.user_metadata.avatar_url}
+                      alt="Avatar"
+                      className="w-7 h-7 rounded-full object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className={`w-7 h-7 rounded-full text-white flex items-center justify-center text-xs font-bold shrink-0 ${role === 'faculty' ? 'bg-[#238636]' : 'bg-[#1f6feb]'}`}>
+                      {getInitials()}
+                    </div>
+                  )}
+                  <div className="overflow-hidden">
+                    <div className="text-xs font-semibold text-white leading-tight truncate">
+                      {displayName}
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-mono truncate">
+                      {role === 'faculty' ? 'Faculty Member' : 'Student Developer'}
+                    </div>
                   </div>
-                  <div className="text-[10px] text-slate-400 font-mono">
-                    {role === 'faculty' ? 'Faculty • MITAOE' : 'Student • MITAOE'}
-                  </div>
                 </div>
+                <button
+                  onClick={() => signOut()}
+                  className="p-1 rounded text-slate-500 hover:text-rose-400 transition-colors"
+                  title="Sign out"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
               </div>
-              <MoreHorizontal className="w-4 h-4 text-slate-500 cursor-pointer hover:text-slate-300" />
-            </div>
+            ) : (
+              <Link
+                href="/auth/login"
+                className="flex items-center justify-between p-2 rounded-lg bg-[#111728] hover:bg-[#161f33] border border-[#1e293b] text-xs transition-colors"
+              >
+                <div className="flex items-center gap-2 text-slate-300">
+                  <UserIcon className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Not signed in</span>
+                </div>
+                <span className="text-[10px] font-mono text-[#58a6ff]">Sign in →</span>
+              </Link>
+            )}
 
             <Link
               href="/auth/login"
@@ -287,8 +392,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           {/* Academic Prototype Footer */}
           <footer className="px-8 py-4 border-t border-[#1c2438] flex items-center justify-between text-[11px] text-slate-500 font-mono shrink-0">
-            <span>© 2026 CodePilot AI • Academic prototype</span>
-            <span>Built for MITAOE • v1.0.0-demo</span>
+            <span>© 2026 CodePilot AI • Engineering Platform</span>
+            <span>Version v1.0.0-production</span>
           </footer>
         </main>
       </div>

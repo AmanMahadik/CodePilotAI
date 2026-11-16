@@ -32,10 +32,9 @@ export default function Footer() {
             <p className="text-slate-300 font-medium">MIT Academy of Engineering, Pune</p>
             <p className="text-slate-400">Alandi (D.), Pune — A.Y. 2025-2026</p>
             <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60 font-mono text-[11px] text-slate-300 space-y-1">
-              <div>Name: <span className="text-white font-semibold">Aman Atmaram Mahadik</span></div>
-              <div>PRN: <span className="text-brand-300">202502100006</span></div>
-              <div>Roll No: <span className="text-brand-300">68</span> (Batch B3)</div>
-              <div>Assignment: <span className="text-brand-300">Assignment 1</span></div>
+              <div>Author: <span className="text-white font-semibold">Engineering Candidate</span></div>
+              <div>Specification: <span className="text-brand-300">CPA-PRD-001</span></div>
+              <div>Process: <span className="text-brand-300">Incremental Model</span></div>
             </div>
           </div>
 

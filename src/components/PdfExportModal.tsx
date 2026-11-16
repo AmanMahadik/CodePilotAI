@@ -31,10 +31,10 @@ export default function PdfExportModal({ review, isOpen, onClose }: PdfExportMod
     review.institutionBranding?.institutionName || 'MIT Academy of Engineering, Alandi (D.), Pune'
   );
   const [studentName, setStudentName] = useState(
-    review.institutionBranding?.studentName || 'Aman Atmaram Mahadik'
+    review.institutionBranding?.studentName || 'Candidate Author'
   );
   const [prnRoll, setPrnRoll] = useState(
-    `PRN: ${review.institutionBranding?.rollNo || '202502100006'} | Roll No: 68 | Batch B3`
+    `Reference ID: ${review.institutionBranding?.rollNo || 'DEV-2026-001'} | Review Cycle`
   );
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);

@@ -6,7 +6,7 @@ import AppLayout from '@/components/AppLayout';
 export const metadata: Metadata = {
   title: 'CodePilot AI — Engineering Workspace',
   description:
-    'Autonomous AI Software Engineering Assistant built for MIT Academy of Engineering, Pune. Aman Atmaram Mahadik (PRN: 202502100006, Roll No: 68, Batch B3).',
+    'Autonomous AI Software Engineering Assistant with multi-agent code analysis, OWASP security scanning, and repository-grounded chat.',
   icons: {
     icon: '/logo.png',
     shortcut: '/logo.png',

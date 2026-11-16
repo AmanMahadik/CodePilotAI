@@ -25,7 +25,7 @@ export default function FacultyPortalPage() {
   const students = [
     {
       id: 'stud-68',
-      name: 'Aman Atmaram Mahadik',
+      name: 'Alex Morgan',
       prn: '202502100006',
       rollNo: '68',
       batch: 'B3',
@@ -104,19 +104,19 @@ export default function FacultyPortalPage() {
         <div>
           <div className="text-[11px] font-mono text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1.5">
             <School className="w-3.5 h-3.5 text-[#3fb950]" />
-            <span>FACULTY PORTAL • MIT ACADEMY OF ENGINEERING, PUNE</span>
+            <span>FACULTY PORTAL • ACADEMIC EVALUATION</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
             Classroom Submissions &amp; Defect Analytics
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Academic Year 2025-2026 • School of Computer Engineering • Batch B3 Advisor Portal
+            Institutional Code Audit • Cohort Roster &amp; Assignment Oversight
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="px-3 py-1.5 rounded-lg bg-[#0e1424] border border-[#1c2438] text-xs font-mono text-slate-300">
-            Instructor: <span className="text-white font-semibold">{user?.user_metadata?.full_name || 'Prof. R. K. Sharma'}</span>
+            Evaluator: <span className="text-white font-semibold">{user?.user_metadata?.full_name || user?.email || 'Faculty Evaluator'}</span>
           </span>
         </div>
       </div>

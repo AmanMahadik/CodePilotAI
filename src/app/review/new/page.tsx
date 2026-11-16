@@ -25,7 +25,7 @@ export default function AddRepositoryPage() {
   const [activeTab, setActiveTab] = useState<'zip' | 'github'>('zip');
   const [zipFile, setZipFile] = useState<File | null>(null);
   const [zipFileName, setZipFileName] = useState<string>('');
-  const [githubUrl, setGithubUrl] = useState('https://github.com/aman-mahadik/Society_Sync');
+  const [githubUrl, setGithubUrl] = useState('https://github.com/developer/Society_Sync');
   const [skillLevel, setSkillLevel] = useState<SkillLevel>('intermediate');
 
   // Exclusion Rules
@@ -104,11 +104,11 @@ export default function AddRepositoryPage() {
     const repoName = zipFileName ? zipFileName.replace('.zip', '') : 'Society_Sync';
     const review = await runMultiAgentReview(repoName, 'main', skillLevel, {}, {
       enabled: true,
-      institutionName: 'MIT Academy of Engineering, Pune',
-      department: 'School of Computer Engineering',
-      batch: 'Batch B3 (Roll No: 68)',
-      studentName: 'Aman Atmaram Mahadik',
-      rollNo: '202502100006',
+      institutionName: user?.user_metadata?.institution || 'Engineering Workspace',
+      department: user?.user_metadata?.department || 'Department of Computer Science',
+      batch: 'Batch 2026',
+      studentName: user?.user_metadata?.full_name || 'Project Author',
+      rollNo: 'DEV-001',
     });
     saveReview(review);
 

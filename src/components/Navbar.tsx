@@ -99,7 +99,7 @@ export default function Navbar() {
           {/* Institutional Roll Badge */}
           <div className="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-md bg-slate-800/80 border border-slate-700/60 text-[11px] text-slate-300 font-mono">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>Aman Mahadik (Roll 68)</span>
+            <span>{user?.user_metadata?.full_name || 'Engineering Workspace'}</span>
           </div>
 
           {/* Notifications Panel Trigger */}
@@ -186,7 +186,7 @@ export default function Navbar() {
                 <div className="absolute right-0 mt-2 w-56 rounded-xl bg-dark-850 border border-slate-700 shadow-2xl z-50 p-2">
                   <div className="px-3 py-2 border-b border-slate-800 mb-1">
                     <p className="text-xs font-medium text-white truncate">
-                      {user.user_metadata?.full_name || 'Aman Atmaram Mahadik'}
+                      {user.user_metadata?.full_name || user.email?.split('@')[0]}
                     </p>
                     <p className="text-[10px] text-slate-400 font-mono truncate">{user.email}</p>
                     {isDemoUser && (

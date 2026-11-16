@@ -4,10 +4,10 @@ export const INITIAL_REPOSITORIES: Repository[] = [
   {
     id: 'repo-1',
     name: 'ecommerce-microservices',
-    owner: 'aman-mahadik',
+    owner: 'developer',
     source: 'github',
     branch: 'main',
-    url: 'https://github.com/aman-mahadik/ecommerce-microservices',
+    url: 'https://github.com/developer/ecommerce-microservices',
     primaryLanguage: 'TypeScript',
     languageDistribution: {
       TypeScript: 68,
@@ -26,10 +26,10 @@ export const INITIAL_REPOSITORIES: Repository[] = [
   {
     id: 'repo-2',
     name: 'secure-vault-api',
-    owner: 'aman-mahadik',
+    owner: 'developer',
     source: 'github',
     branch: 'develop',
-    url: 'https://github.com/aman-mahadik/secure-vault-api',
+    url: 'https://github.com/developer/secure-vault-api',
     primaryLanguage: 'TypeScript',
     languageDistribution: {
       TypeScript: 84,
@@ -47,7 +47,7 @@ export const INITIAL_REPOSITORIES: Repository[] = [
   {
     id: 'repo-3',
     name: 'student-algorithms-py',
-    owner: 'aman-mahadik',
+    owner: 'developer',
     source: 'upload_zip',
     branch: 'main',
     primaryLanguage: 'Python',
@@ -80,11 +80,11 @@ export const INITIAL_REVIEWS: Record<string, Review> = {
     shareToken: 'cp-share-8f2a1b9c',
     institutionBranding: {
       enabled: true,
-      institutionName: 'MIT Academy of Engineering, Alandi (D.), Pune',
-      department: 'School of Computer Engineering and Technology',
-      batch: 'Batch B3 (Roll No: 68)',
-      studentName: 'Aman Atmaram Mahadik',
-      rollNo: '202502100006',
+      institutionName: 'University Department of Computer Engineering',
+      department: 'School of Computer Science',
+      batch: 'Batch 2026',
+      studentName: 'Candidate Developer',
+      rollNo: 'DEV-2026-001',
     },
     scores: {
       overall: 82,
@@ -296,7 +296,7 @@ An autonomous, modular e-commerce backend built with TypeScript, Node.js, Expres
 ## Setup & Local Installation
 \`\`\`bash
 # 1. Clone repository
-git clone https://github.com/aman-mahadik/ecommerce-microservices.git
+git clone https://github.com/developer/ecommerce-microservices.git
 cd ecommerce-microservices
 
 # 2. Install dependencies

@@ -33,39 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isDemoUser, setIsDemoUser] = useState(false);
 
   useEffect(() => {
-    // Check local storage for demo mode
-    const storedDemo = typeof window !== 'undefined' ? localStorage.getItem('codepilot_demo_user') : null;
-    const storedRole = typeof window !== 'undefined' ? (localStorage.getItem('codepilot_user_role') as UserRole) : null;
-
-    if (storedDemo === 'true') {
-      setIsDemoUser(true);
-      const isFaculty = storedRole === 'faculty';
-      setRole(isFaculty ? 'faculty' : 'student');
-
-      setUser({
-        id: isFaculty ? 'demo-faculty-user' : 'demo-student-user',
-        email: isFaculty ? 'prof.sharma@mitaoe.ac.in' : 'aman.mahadik@mitaoe.ac.in',
-        user_metadata: {
-          full_name: isFaculty ? 'Prof. R. K. Sharma' : 'Aman Atmaram Mahadik',
-          avatar_url: isFaculty ? null : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=128&auto=format&fit=crop&q=80',
-          role: isFaculty ? 'faculty' : 'student',
-          institution: 'MIT Academy of Engineering, Pune',
-          department: 'School of Computer Engineering',
-          prn: isFaculty ? 'FACULTY-008' : '202502100006',
-          roll_no: isFaculty ? 'Staff' : '68',
-          batch: 'B3',
-        },
-        app_metadata: {
-          provider: isFaculty ? 'email' : 'github',
-        },
-        aud: 'authenticated',
-        created_at: new Date().toISOString(),
-      } as unknown as User);
-      setIsLoading(false);
-      return;
-    }
-
-    // Supabase auth state listener
+    // 1. Supabase initial session check
     const getInitialSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -75,6 +43,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const userRole = (session.user.user_metadata?.role as UserRole) || 
             (session.user.app_metadata?.provider === 'github' ? 'student' : 'faculty');
           setRole(userRole);
+          setIsDemoUser(false);
+        } else {
+          // Check if demo user was explicitly enabled
+          const storedDemo = typeof window !== 'undefined' ? localStorage.getItem('codepilot_demo_active') : null;
+          const storedRole = typeof window !== 'undefined' ? (localStorage.getItem('codepilot_user_role') as UserRole) : null;
+          if (storedDemo === 'true') {
+            const isFaculty = storedRole === 'faculty';
+            setIsDemoUser(true);
+            setRole(isFaculty ? 'faculty' : 'student');
+            setUser({
+              id: isFaculty ? 'demo-faculty-user' : 'demo-student-user',
+              email: isFaculty ? 'faculty@university.edu' : 'student@university.edu',
+              user_metadata: {
+                full_name: isFaculty ? 'Faculty Reviewer' : 'Student Developer',
+                role: isFaculty ? 'faculty' : 'student',
+                institution: 'University Engineering Department',
+              },
+              app_metadata: { provider: isFaculty ? 'email' : 'github' },
+              aud: 'authenticated',
+              created_at: new Date().toISOString(),
+            } as unknown as User);
+          } else {
+            setUser(null);
+          }
         }
       } catch (err) {
         console.error('Error checking auth session:', err);
@@ -85,15 +77,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     getInitialSession();
 
+    // 2. Auth State Change Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
         setIsDemoUser(false);
+        localStorage.removeItem('codepilot_demo_active');
         localStorage.removeItem('codepilot_demo_user');
         const userRole = (session.user.user_metadata?.role as UserRole) || 
           (session.user.app_metadata?.provider === 'github' ? 'student' : 'faculty');
         setRole(userRole);
+      } else {
+        const storedDemo = typeof window !== 'undefined' ? localStorage.getItem('codepilot_demo_active') : null;
+        if (!storedDemo) {
+          setUser(null);
+        }
       }
       setIsLoading(false);
     });
@@ -111,9 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         options: {
           redirectTo: redirectUrl,
           scopes: 'read:user user:email repo',
-          queryParams: {
-            role: 'student',
-          },
+          queryParams: { role: 'student' },
         },
       });
       return { error };
@@ -127,9 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-        },
+        options: { redirectTo: redirectUrl },
       });
       return { error };
     } catch (err: unknown) {
@@ -166,7 +161,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data: {
             full_name: fullName || (userRole === 'faculty' ? 'Faculty Member' : 'Student Developer'),
             role: userRole,
-            institution: 'MIT Academy of Engineering, Pune',
           },
           emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined,
         },
@@ -189,6 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    localStorage.removeItem('codepilot_demo_active');
     localStorage.removeItem('codepilot_demo_user');
     localStorage.removeItem('codepilot_user_role');
     setIsDemoUser(false);
@@ -202,23 +197,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const enableStudentDemo = () => {
-    localStorage.setItem('codepilot_demo_user', 'true');
+    localStorage.setItem('codepilot_demo_active', 'true');
     localStorage.setItem('codepilot_user_role', 'student');
     setIsDemoUser(true);
     setRole('student');
     setUser({
       id: 'demo-student-user',
-      email: 'aman.mahadik@mitaoe.ac.in',
+      email: 'student@example.edu',
       user_metadata: {
-        full_name: 'Aman Atmaram Mahadik',
+        full_name: 'Alex Morgan',
         avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=128&auto=format&fit=crop&q=80',
         role: 'student',
-        user_name: 'amanmahadik',
-        institution: 'MIT Academy of Engineering, Pune',
-        department: 'School of Computer Engineering',
-        prn: '202502100006',
-        roll_no: '68',
-        batch: 'B3',
+        user_name: 'alexmorgan',
+        institution: 'School of Engineering & Technology',
       },
       app_metadata: { provider: 'github' },
       aud: 'authenticated',
@@ -227,23 +218,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const enableFacultyDemo = () => {
-    localStorage.setItem('codepilot_demo_user', 'true');
+    localStorage.setItem('codepilot_demo_active', 'true');
     localStorage.setItem('codepilot_user_role', 'faculty');
     setIsDemoUser(true);
     setRole('faculty');
     setUser({
       id: 'demo-faculty-user',
-      email: 'prof.sharma@mitaoe.ac.in',
+      email: 'faculty@example.edu',
       user_metadata: {
-        full_name: 'Prof. R. K. Sharma',
+        full_name: 'Dr. Sarah Jenkins',
         avatar_url: null,
         role: 'faculty',
-        user_name: 'prof-sharma',
-        institution: 'MIT Academy of Engineering, Pune',
-        department: 'School of Computer Engineering',
-        prn: 'FACULTY-008',
-        roll_no: 'Staff Advisor',
-        batch: 'B3',
+        user_name: 'dr-jenkins',
+        institution: 'School of Engineering & Technology',
       },
       app_metadata: { provider: 'email' },
       aud: 'authenticated',

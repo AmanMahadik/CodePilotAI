@@ -60,7 +60,7 @@ export default function AuthAccountPage() {
   const handleFacultyRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreeTerms) {
-      alert('Please agree to terms and privacy policy.');
+      alert('Please agree to the platform policy.');
       return;
     }
     setRegLoading(true);
@@ -174,17 +174,14 @@ export default function AuthAccountPage() {
               <div className="p-4 rounded-xl bg-[#0f172a] border border-[#1d2b48] space-y-1.5 text-xs">
                 <div className="flex items-center justify-between">
                   <div className="font-bold text-[#58a6ff] font-mono uppercase tracking-wider text-[11px]">
-                    Student Demo Profile
+                    Quick Demo Access
                   </div>
                   <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-800">
-                    One-Click
+                    Preview Mode
                   </span>
                 </div>
-                <div className="text-slate-300 font-mono text-[11px]">
-                  Aman Atmaram Mahadik • Roll 68 • Batch B3
-                </div>
-                <div className="text-slate-400 font-mono text-[10px]">
-                  PRN: 202502100006 • MIT Academy of Engineering, Pune
+                <div className="text-slate-300 text-[11.5px]">
+                  Explore the complete student experience with sample repositories and multi-agent review data.
                 </div>
                 <button
                   onClick={handleStudentDemo}
@@ -207,7 +204,7 @@ export default function AuthAccountPage() {
                   required
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="faculty@mitaoe.ac.in"
+                  placeholder="faculty@university.edu"
                   className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-xs text-white placeholder:text-slate-600 font-mono focus:outline-none focus:border-[#388bfd]"
                 />
               </div>
@@ -245,17 +242,14 @@ export default function AuthAccountPage() {
               <div className="p-4 rounded-xl bg-[#0f172a] border border-[#1d2b48] space-y-1.5 text-xs mt-3">
                 <div className="flex items-center justify-between">
                   <div className="font-bold text-[#3fb950] font-mono uppercase tracking-wider text-[11px]">
-                    Faculty Staff Demo
+                    Quick Faculty Access
                   </div>
                   <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-800">
                     Staff Pass
                   </span>
                 </div>
-                <div className="text-slate-300 font-mono text-[11px]">
-                  Prof. R. K. Sharma • Staff Advisor (Batch B3)
-                </div>
-                <div className="text-slate-400 font-mono text-[10px]">
-                  School of Computer Engineering • MIT AOE
+                <div className="text-slate-300 text-[11.5px]">
+                  Explore the class-wide defect analytics dashboard, cohort rosters, and submission grading.
                 </div>
                 <button
                   type="button"
@@ -295,7 +289,7 @@ export default function AuthAccountPage() {
                 required
                 value={regName}
                 onChange={(e) => setRegName(e.target.value)}
-                placeholder="Prof. Full Name"
+                placeholder="Dr. Full Name"
                 className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-xs text-white placeholder:text-slate-600 font-mono focus:outline-none focus:border-[#388bfd]"
               />
             </div>
@@ -309,7 +303,7 @@ export default function AuthAccountPage() {
                 required
                 value={regEmail}
                 onChange={(e) => setRegEmail(e.target.value)}
-                placeholder="faculty@mitaoe.ac.in"
+                placeholder="faculty@university.edu"
                 className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-xs text-white placeholder:text-slate-600 font-mono focus:outline-none focus:border-[#388bfd]"
               />
             </div>
@@ -341,7 +335,7 @@ export default function AuthAccountPage() {
                 {agreeTerms && <Check className="w-3 h-3 stroke-[3]" />}
               </div>
               <span className="leading-snug">
-                I verify that I am an authorized academic evaluator at MIT AOE.
+                I verify that I am an authorized academic or organizational evaluator.
               </span>
             </label>
 
@@ -356,7 +350,7 @@ export default function AuthAccountPage() {
 
           <div className="p-3.5 rounded-lg bg-[#070a12] border border-[#172033] text-[11px] font-mono text-slate-400 space-y-1">
             <div className="text-white font-semibold">Student Sign-Up Note:</div>
-            <div>Students do not need a password — simply select the Student tab and click &quot;Sign in with GitHub&quot; to authorize using your GitHub student profile.</div>
+            <div>Students do not need a password — simply select the Student tab and click &quot;Sign in with GitHub&quot; to authorize using your GitHub profile.</div>
           </div>
         </div>
       </div>
