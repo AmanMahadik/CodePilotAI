@@ -14,6 +14,7 @@ import {
   ArrowUp,
   Loader2
 } from 'lucide-react';
+import Logo from '@/components/Logo';
 
 interface ChatItem {
   role: 'assistant' | 'user';
@@ -130,7 +131,7 @@ export default function TerminalAIPage() {
         {/* Terminal Title Bar */}
         <div className="px-4 py-2.5 bg-[#0a0f1d] border-b border-[#1c2438] flex items-center justify-between text-xs font-mono text-slate-400 shrink-0">
           <div className="flex items-center gap-2">
-            <Command className="w-3.5 h-3.5 text-slate-400" />
+            <Logo size={18} rounded="rounded-sm" />
             <span className="font-semibold text-white">CodePilot Terminal</span>
           </div>
           <span>Society_Sync • main</span>
@@ -227,7 +228,7 @@ export default function TerminalAIPage() {
               {messages.map((msg, i) => (
                 <div key={i} className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-4 space-y-3">
                   <div className="flex items-center gap-2 text-xs font-bold text-white font-mono">
-                    <Command className="w-3.5 h-3.5 text-[#58a6ff]" />
+                    <Logo size={18} rounded="rounded-sm" />
                     <span>{msg.author}</span>
                   </div>
 

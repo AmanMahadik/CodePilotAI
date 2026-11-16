@@ -11,6 +11,7 @@ import {
   Loader2, 
   AlertCircle 
 } from 'lucide-react';
+import Logo from '@/components/Logo';
 import { useAuth } from '@/lib/supabase/auth-context';
 
 export default function AuthAccountPage() {
@@ -87,8 +88,8 @@ export default function AuthAccountPage() {
         {/* Left Card: Sign In to CodePilot */}
         <div className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-6 sm:p-8 space-y-5">
           <div className="text-center space-y-2">
-            <div className="w-10 h-10 rounded-xl bg-white text-black flex items-center justify-center mx-auto shadow-md">
-              <Command className="w-6 h-6 text-black stroke-[2.5]" />
+            <div className="flex justify-center">
+              <Logo size={48} rounded="rounded-xl" className="shadow-lg shadow-blue-500/10" />
             </div>
             <h2 className="text-lg font-bold text-white tracking-tight">
               Sign in to CodePilot

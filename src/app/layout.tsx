@@ -7,6 +7,11 @@ export const metadata: Metadata = {
   title: 'CodePilot AI — Engineering Workspace',
   description:
     'Autonomous AI Software Engineering Assistant built for MIT Academy of Engineering, Pune. Aman Atmaram Mahadik (PRN: 202502100006, Roll No: 68, Batch B3).',
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
 };
 
 export default function RootLayout({

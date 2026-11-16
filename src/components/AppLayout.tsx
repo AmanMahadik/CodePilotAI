@@ -18,6 +18,7 @@ import {
   MoreHorizontal,
   Bot
 } from 'lucide-react';
+import Logo from '@/components/Logo';
 import { useAuth } from '@/lib/supabase/auth-context';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -35,11 +36,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Top Header Bar */}
       <header className="h-13 bg-[#0c101b] border-b border-[#1c2438] px-4 py-2.5 flex items-center justify-between sticky top-0 z-50 shrink-0">
         <div className="flex items-center gap-2.5">
-          {/* Logo with 4-square/clover mark */}
+          {/* Official CodePilot Project Logo */}
           <Link href="/dashboard" className="flex items-center gap-2.5 group">
-            <div className="w-7 h-7 rounded-lg bg-white text-black flex items-center justify-center font-bold text-sm shadow-md group-hover:scale-105 transition-transform">
-              <Command className="w-4 h-4 text-black stroke-[2.5]" />
-            </div>
+            <Logo size={30} className="shadow-md group-hover:scale-105 transition-transform" />
             <div className="flex items-center gap-1.5 text-xs">
               <span className="font-bold text-white text-sm tracking-tight">CodePilot</span>
               <span className="text-slate-400 font-normal">AI</span>
