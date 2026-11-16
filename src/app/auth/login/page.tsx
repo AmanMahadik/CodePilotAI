@@ -4,27 +4,38 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
-  Command, 
   Github, 
   Check, 
   ArrowRight, 
   Loader2, 
-  AlertCircle 
+  AlertCircle,
+  GraduationCap,
+  School,
+  Sparkles
 } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { useAuth } from '@/lib/supabase/auth-context';
 
 export default function AuthAccountPage() {
   const router = useRouter();
-  const { signInWithGithub, signInWithGoogle, signInWithEmail, signUpWithEmail, enableDemoUser } = useAuth();
+  const { 
+    signInWithGithub, 
+    signInWithEmail, 
+    signUpWithEmail, 
+    enableStudentDemo, 
+    enableFacultyDemo 
+  } = useAuth();
 
-  // Login form state
+  // Active role tab: student (GitHub) vs faculty (Email)
+  const [activePortal, setActivePortal] = useState<'student' | 'faculty'>('student');
+
+  // Login form state (Faculty)
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  // Register form state
+  // Register form state (Faculty signup)
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
@@ -33,20 +44,20 @@ export default function AuthAccountPage() {
   const [regSuccess, setRegSuccess] = useState(false);
   const [regError, setRegError] = useState<string | null>(null);
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleFacultySignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginLoading(true);
     setLoginError(null);
-    const { error } = await signInWithEmail(loginEmail, loginPassword);
+    const { error } = await signInWithEmail(loginEmail, loginPassword, 'faculty');
     setLoginLoading(false);
     if (error) {
       setLoginError(error.message);
     } else {
-      router.push('/dashboard');
+      router.push('/faculty');
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleFacultyRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agreeTerms) {
       alert('Please agree to terms and privacy policy.');
@@ -54,7 +65,7 @@ export default function AuthAccountPage() {
     }
     setRegLoading(true);
     setRegError(null);
-    const { error } = await signUpWithEmail(regEmail, regPassword);
+    const { error } = await signUpWithEmail(regEmail, regPassword, regName, 'faculty');
     setRegLoading(false);
     if (error) {
       setRegError(error.message);
@@ -63,39 +74,73 @@ export default function AuthAccountPage() {
     }
   };
 
-  const handleDemoLogin = () => {
-    enableDemoUser();
+  const handleStudentDemo = () => {
+    enableStudentDemo();
     router.push('/dashboard');
+  };
+
+  const handleFacultyDemo = () => {
+    enableFacultyDemo();
+    router.push('/faculty');
   };
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      {/* Header */}
+      {/* Top Header */}
       <div>
         <div className="text-[11px] font-mono text-slate-500 uppercase tracking-wider mb-1">
           AUTHENTICATION &amp; ACCOUNT
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-          Secure access to your engineering workspace
+          Secure Access to Engineering Workspace
         </h1>
         <p className="text-xs text-slate-400 mt-0.5">
-          Sign in or create an account with GitHub OAuth, Google, or student credentials.
+          Students sign in via GitHub OAuth • Faculty members sign in via Institutional Email &amp; Password.
         </p>
+      </div>
+
+      {/* Role Portal Switcher Banner */}
+      <div className="p-1.5 rounded-xl bg-[#0e1424] border border-[#1c2438] flex max-w-md">
+        <button
+          onClick={() => setActivePortal('student')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
+            activePortal === 'student'
+              ? 'bg-[#18233c] text-white border border-[#388bfd] shadow-sm'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <GraduationCap className="w-4 h-4 text-[#58a6ff]" />
+          <span>Student Portal (GitHub)</span>
+        </button>
+
+        <button
+          onClick={() => setActivePortal('faculty')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
+            activePortal === 'faculty'
+              ? 'bg-[#18233c] text-white border border-[#388bfd] shadow-sm'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <School className="w-4 h-4 text-[#3fb950]" />
+          <span>Faculty Portal (Email)</span>
+        </button>
       </div>
 
       {/* Side-by-side Landscape Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-        {/* Left Card: Sign In to CodePilot */}
+        {/* Left Card: Primary Portal Login */}
         <div className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-6 sm:p-8 space-y-5">
           <div className="text-center space-y-2">
             <div className="flex justify-center">
               <Logo size={48} rounded="rounded-xl" className="shadow-lg shadow-blue-500/10" />
             </div>
             <h2 className="text-lg font-bold text-white tracking-tight">
-              Sign in to CodePilot
+              {activePortal === 'student' ? 'Student Sign-In' : 'Faculty Sign-In'}
             </h2>
             <p className="text-xs text-slate-400">
-              Your AI-powered engineering workspace.
+              {activePortal === 'student'
+                ? 'Authorized access to your repositories and AI review agents via GitHub.'
+                : 'Staff portal for batch audits, grade submissions, and roster management.'}
             </p>
           </div>
 
@@ -106,130 +151,143 @@ export default function AuthAccountPage() {
             </div>
           )}
 
-          {/* OAuth Buttons */}
-          <div className="space-y-2.5">
-            <button
-              onClick={() => signInWithGithub()}
-              type="button"
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-[#161f33] hover:bg-[#1f2c49] border border-[#22304d] text-xs font-semibold text-white transition-colors"
-            >
-              <Github className="w-4 h-4" />
-              <span>Sign in with GitHub</span>
-            </button>
+          {activePortal === 'student' ? (
+            /* STUDENT LOGIN: GITHUB OAUTH */
+            <div className="space-y-4 pt-2">
+              <button
+                onClick={() => signInWithGithub()}
+                type="button"
+                className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-bold shadow-md transition-colors"
+              >
+                <Github className="w-4 h-4" />
+                <span>Sign in with GitHub (Student Auth)</span>
+              </button>
 
-            <button
-              onClick={() => signInWithGoogle()}
-              type="button"
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-[#161f33] hover:bg-[#1f2c49] border border-[#22304d] text-xs font-semibold text-white transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                <path
-                  fill="#EA4335"
-                  d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.2 9 5 12 5z"
-                />
-                <path
-                  fill="#4285F4"
-                  d="M23.5 12.3c0-.8-.1-1.7-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5.1 3.7-8.8z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.3s.1-1.6.4-2.3L1.9 7.3C.7 9.7 0 10.8 0 12s.7 2.3 1.9 4.7l3.7-1.9z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.2-6.4-5.2L1.9 16c1.8 3.7 5.6 7 10.1 7z"
-                />
-              </svg>
-              <span>Sign in with Google</span>
-            </button>
-          </div>
+              <div className="p-3.5 rounded-lg bg-[#070a12] border border-[#172033] text-slate-400 font-mono text-[11px] space-y-1">
+                <div className="text-slate-300 font-semibold">GitHub OAuth Scopes:</div>
+                <div>• read:user (Student profile &amp; avatar)</div>
+                <div>• user:email (Verified university email)</div>
+                <div>• repo (Public &amp; assigned classroom code)</div>
+              </div>
 
-          <div className="relative flex items-center justify-center">
-            <div className="border-t border-[#1c2438] w-full" />
-            <span className="bg-[#0e1424] px-3 text-[10px] text-slate-500 uppercase tracking-wider font-mono">
-              or continue with email
-            </span>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSignIn} className="space-y-3.5">
-            <div>
-              <label className="block text-xs font-mono text-slate-300 mb-1">Email address</label>
-              <input
-                type="email"
-                required
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-xs text-white placeholder:text-slate-600 font-mono focus:outline-none focus:border-[#388bfd]"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-mono text-slate-300">Password</label>
+              {/* Student Demo Blue Card */}
+              <div className="p-4 rounded-xl bg-[#0f172a] border border-[#1d2b48] space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <div className="font-bold text-[#58a6ff] font-mono uppercase tracking-wider text-[11px]">
+                    Student Demo Profile
+                  </div>
+                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-800">
+                    One-Click
+                  </span>
+                </div>
+                <div className="text-slate-300 font-mono text-[11px]">
+                  Aman Atmaram Mahadik • Roll 68 • Batch B3
+                </div>
+                <div className="text-slate-400 font-mono text-[10px]">
+                  PRN: 202502100006 • MIT Academy of Engineering, Pune
+                </div>
                 <button
-                  type="button"
-                  onClick={() => alert('Password reset link sent to your registered email.')}
-                  className="text-[11px] text-[#58a6ff] hover:underline font-mono"
+                  onClick={handleStudentDemo}
+                  className="text-[#58a6ff] hover:underline font-mono text-xs inline-flex items-center gap-1 font-semibold pt-1"
                 >
-                  Forgot password?
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Launch Student Workspace →</span>
                 </button>
               </div>
-              <input
-                type="password"
-                required
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                placeholder="Enter your password"
-                className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-xs text-white placeholder:text-slate-600 font-mono focus:outline-none focus:border-[#388bfd]"
-              />
             </div>
+          ) : (
+            /* FACULTY LOGIN: EMAIL & PASSWORD */
+            <form onSubmit={handleFacultySignIn} className="space-y-3.5 pt-2">
+              <div>
+                <label className="block text-xs font-mono text-slate-300 mb-1">
+                  Institutional faculty email
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="faculty@mitaoe.ac.in"
+                  className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-xs text-white placeholder:text-slate-600 font-mono focus:outline-none focus:border-[#388bfd]"
+                />
+              </div>
 
-            <button
-              type="submit"
-              disabled={loginLoading}
-              className="w-full py-2.5 rounded-lg bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-semibold shadow-sm transition-colors disabled:opacity-50 mt-1"
-            >
-              {loginLoading ? 'Signing in...' : 'Sign in'}
-            </button>
-          </form>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-mono text-slate-300">Password</label>
+                  <button
+                    type="button"
+                    onClick={() => alert('Password reset link sent to your faculty email address.')}
+                    className="text-[11px] text-[#58a6ff] hover:underline font-mono"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <input
+                  type="password"
+                  required
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-xs text-white placeholder:text-slate-600 font-mono focus:outline-none focus:border-[#388bfd]"
+                />
+              </div>
 
-          {/* Student Demo Blue Card */}
-          <div className="p-4 rounded-xl bg-[#0f172a] border border-[#1d2b48] space-y-1.5 text-xs">
-            <div className="font-bold text-[#58a6ff] font-mono uppercase tracking-wider text-[11px]">
-              MIT AOE Student Demo
-            </div>
-            <div className="text-slate-300 font-mono text-[11px]">
-              Aman Atmaram Mahadik • Roll 68 • Batch B3
-            </div>
-            <button
-              onClick={handleDemoLogin}
-              className="text-[#58a6ff] hover:underline font-mono text-xs inline-flex items-center gap-1 font-semibold pt-1"
-            >
-              <span>Continue as demo student →</span>
-            </button>
-          </div>
+              <button
+                type="submit"
+                disabled={loginLoading}
+                className="w-full py-2.5 rounded-lg bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-semibold shadow-sm transition-colors disabled:opacity-50 mt-1"
+              >
+                {loginLoading ? 'Signing in...' : 'Sign in to Faculty Portal'}
+              </button>
+
+              {/* Faculty Demo Card */}
+              <div className="p-4 rounded-xl bg-[#0f172a] border border-[#1d2b48] space-y-1.5 text-xs mt-3">
+                <div className="flex items-center justify-between">
+                  <div className="font-bold text-[#3fb950] font-mono uppercase tracking-wider text-[11px]">
+                    Faculty Staff Demo
+                  </div>
+                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-800">
+                    Staff Pass
+                  </span>
+                </div>
+                <div className="text-slate-300 font-mono text-[11px]">
+                  Prof. R. K. Sharma • Staff Advisor (Batch B3)
+                </div>
+                <div className="text-slate-400 font-mono text-[10px]">
+                  School of Computer Engineering • MIT AOE
+                </div>
+                <button
+                  type="button"
+                  onClick={handleFacultyDemo}
+                  className="text-[#3fb950] hover:underline font-mono text-xs inline-flex items-center gap-1 font-semibold pt-1"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Launch Faculty Grading Portal →</span>
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
-        {/* Right Card: Create Your Account */}
+        {/* Right Card: Account Registration & Role Information */}
         <div className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-6 sm:p-8 space-y-5">
           <div>
             <h2 className="text-lg font-bold text-white tracking-tight">
-              Create your account
+              Create Faculty or Staff Account
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Join CodePilot AI and start reviewing repositories.
+              Faculty members register with an institutional email to oversee student cohorts.
             </p>
           </div>
 
           {regSuccess && (
             <div className="p-3.5 rounded-lg bg-[#238636]/20 border border-[#238636]/40 text-xs text-[#3fb950] font-mono">
-              Account created successfully! Verification link simulated.
+              Faculty registration dispatched! Check your institutional inbox.
             </div>
           )}
 
-          <form onSubmit={handleRegister} className="space-y-3.5">
+          <form onSubmit={handleFacultyRegister} className="space-y-3.5">
             <div>
               <label className="block text-xs font-mono text-slate-300 mb-1">Full name</label>
               <input
@@ -237,19 +295,21 @@ export default function AuthAccountPage() {
                 required
                 value={regName}
                 onChange={(e) => setRegName(e.target.value)}
-                placeholder="Your name"
+                placeholder="Prof. Full Name"
                 className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-xs text-white placeholder:text-slate-600 font-mono focus:outline-none focus:border-[#388bfd]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-mono text-slate-300 mb-1">Email address</label>
+              <label className="block text-xs font-mono text-slate-300 mb-1">
+                Institutional email address
+              </label>
               <input
                 type="email"
                 required
                 value={regEmail}
                 onChange={(e) => setRegEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder="faculty@mitaoe.ac.in"
                 className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-xs text-white placeholder:text-slate-600 font-mono focus:outline-none focus:border-[#388bfd]"
               />
             </div>
@@ -264,19 +324,6 @@ export default function AuthAccountPage() {
                 placeholder="Create a strong password"
                 className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-xs text-white placeholder:text-slate-600 font-mono focus:outline-none focus:border-[#388bfd]"
               />
-
-              {/* Password strength indicators */}
-              <div className="mt-2 space-y-1">
-                <div className="flex gap-1.5 h-1">
-                  <div className={`flex-1 rounded-full ${regPassword ? 'bg-[#3fb950]' : 'bg-[#1c2438]'}`} />
-                  <div className={`flex-1 rounded-full ${regPassword.length > 5 ? 'bg-[#3fb950]' : 'bg-[#1c2438]'}`} />
-                  <div className={`flex-1 rounded-full ${regPassword.length > 8 ? 'bg-[#3fb950]' : 'bg-[#1c2438]'}`} />
-                  <div className={`flex-1 rounded-full ${regPassword.length > 11 ? 'bg-[#3fb950]' : 'bg-[#1c2438]'}`} />
-                </div>
-                <div className="text-[10px] text-slate-500 font-mono">
-                  Password strength: {regPassword ? (regPassword.length > 8 ? 'Strong' : 'Moderate') : 'Not entered'}
-                </div>
-              </div>
             </div>
 
             {/* Terms Checkbox */}
@@ -294,7 +341,7 @@ export default function AuthAccountPage() {
                 {agreeTerms && <Check className="w-3 h-3 stroke-[3]" />}
               </div>
               <span className="leading-snug">
-                I agree to the terms and privacy policy.
+                I verify that I am an authorized academic evaluator at MIT AOE.
               </span>
             </label>
 
@@ -303,12 +350,13 @@ export default function AuthAccountPage() {
               disabled={regLoading}
               className="w-full py-2.5 rounded-lg bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-semibold shadow-sm transition-colors disabled:opacity-50 mt-2"
             >
-              {regLoading ? 'Creating...' : 'Create account'}
+              {regLoading ? 'Registering...' : 'Register as Faculty Member'}
             </button>
           </form>
 
-          <div className="text-[11px] text-slate-500 font-mono leading-relaxed pt-2">
-            Email verification is simulated. A production application should send a one-time verification link.
+          <div className="p-3.5 rounded-lg bg-[#070a12] border border-[#172033] text-[11px] font-mono text-slate-400 space-y-1">
+            <div className="text-white font-semibold">Student Sign-Up Note:</div>
+            <div>Students do not need a password — simply select the Student tab and click &quot;Sign in with GitHub&quot; to authorize using your GitHub student profile.</div>
           </div>
         </div>
       </div>

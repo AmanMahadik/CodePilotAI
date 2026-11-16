@@ -19,7 +19,7 @@ import { useAuth } from '@/lib/supabase/auth-context';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { signUpWithEmail, signInWithGithub, signInWithGoogle, enableDemoUser } = useAuth();
+  const { signUpWithEmail, signInWithGithub, signInWithGoogle, enableStudentDemo } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -204,7 +204,7 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    enableDemoUser();
+                    enableStudentDemo();
                     router.push('/dashboard');
                   }}
                   className="text-xs text-amber-400 hover:text-amber-300 inline-flex items-center gap-1 font-medium"

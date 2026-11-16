@@ -16,14 +16,15 @@ import {
   Shield, 
   Command, 
   MoreHorizontal,
-  Bot
+  Bot,
+  School
 } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { useAuth } from '@/lib/supabase/auth-context';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
 
   const isCurrent = (path: string) => {
     if (path === '/dashboard' && (pathname === '/' || pathname === '/dashboard')) return true;
@@ -213,6 +214,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </Link>
 
                 <Link
+                  href="/faculty"
+                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    isCurrent('/faculty')
+                      ? 'bg-[#18233c] text-white font-semibold'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <School className="w-3.5 h-3.5 text-[#3fb950]" />
+                    <span>Faculty Portal</span>
+                  </div>
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#238636]/20 text-[#3fb950] border border-[#238636]/30">
+                    Staff
+                  </span>
+                </Link>
+
+                <Link
                   href="/interview/repo-1"
                   className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                     isCurrent('/interview')
@@ -236,12 +254,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="p-3 border-t border-[#1c2438] space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-[#1f6feb] text-white flex items-center justify-center text-xs font-bold">
-                  AM
+                <div className={`w-7 h-7 rounded-full text-white flex items-center justify-center text-xs font-bold ${role === 'faculty' ? 'bg-[#238636]' : 'bg-[#1f6feb]'}`}>
+                  {role === 'faculty' ? 'RS' : 'AM'}
                 </div>
                 <div>
-                  <div className="text-xs font-semibold text-white leading-tight">Aman Mahadik</div>
-                  <div className="text-[10px] text-slate-400 font-mono">Student • MITAOE</div>
+                  <div className="text-xs font-semibold text-white leading-tight">
+                    {user?.user_metadata?.full_name || (role === 'faculty' ? 'Prof. R. K. Sharma' : 'Aman Mahadik')}
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-mono">
+                    {role === 'faculty' ? 'Faculty • MITAOE' : 'Student • MITAOE'}
+                  </div>
                 </div>
               </div>
               <MoreHorizontal className="w-4 h-4 text-slate-500 cursor-pointer hover:text-slate-300" />
@@ -252,7 +274,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               className="flex items-center gap-2 px-1 text-[11px] text-slate-400 hover:text-white transition-colors"
             >
               <Settings className="w-3.5 h-3.5 text-slate-400" />
-              <span>Authentication & account</span>
+              <span>Authentication &amp; account</span>
             </Link>
           </div>
         </aside>
