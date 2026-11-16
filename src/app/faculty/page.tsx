@@ -20,15 +20,15 @@ import { useAuth } from '@/lib/supabase/auth-context';
 export default function FacultyPortalPage() {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterBatch, setFilterBatch] = useState('B3');
+  const [filterBatch, setFilterBatch] = useState('All');
 
   const students = [
     {
-      id: 'stud-68',
+      id: 'stud-01',
       name: 'Alex Morgan',
-      prn: '202502100006',
-      rollNo: '68',
-      batch: 'B3',
+      prn: 'CS-2026-001',
+      rollNo: '01',
+      batch: 'Cohort A',
       repoName: 'Society_Sync',
       branch: 'main',
       score: 92,
@@ -40,11 +40,11 @@ export default function FacultyPortalPage() {
       reviewLink: '/review/rev-1',
     },
     {
-      id: 'stud-65',
-      name: 'Rohan Deshmukh',
-      prn: '202502100003',
-      rollNo: '65',
-      batch: 'B3',
+      id: 'stud-02',
+      name: 'Sarah Chen',
+      prn: 'CS-2026-002',
+      rollNo: '02',
+      batch: 'Cohort A',
       repoName: 'Civic_Reporter_API',
       branch: 'main',
       score: 78,
@@ -56,11 +56,11 @@ export default function FacultyPortalPage() {
       reviewLink: '/review/rev-1',
     },
     {
-      id: 'stud-67',
-      name: 'Snehal Kulkarni',
-      prn: '202502100005',
-      rollNo: '67',
-      batch: 'B3',
+      id: 'stud-03',
+      name: 'Marcus Vance',
+      prn: 'CS-2026-003',
+      rollNo: '03',
+      batch: 'Cohort B',
       repoName: 'Smart_Campus_Portal',
       branch: 'develop',
       score: 88,
@@ -125,14 +125,14 @@ export default function FacultyPortalPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="p-4 rounded-xl bg-[#0e1424] border border-[#1c2438]">
           <span className="text-[11px] font-mono text-slate-400 uppercase">Enrolled Students</span>
-          <div className="text-3xl font-bold text-white mt-1">68</div>
-          <span className="text-[10px] text-slate-500 font-mono block mt-0.5">Batch B3 Active</span>
+          <div className="text-3xl font-bold text-white mt-1">48</div>
+          <span className="text-[10px] text-slate-500 font-mono block mt-0.5">Active Cohort</span>
         </div>
 
         <div className="p-4 rounded-xl bg-[#0e1424] border border-[#1c2438]">
           <span className="text-[11px] font-mono text-slate-400 uppercase">Submissions Reviewed</span>
-          <div className="text-3xl font-bold text-[#3fb950] mt-1 font-mono">64 <span className="text-sm font-normal text-slate-400">/ 68</span></div>
-          <span className="text-[10px] text-[#3fb950] font-mono block mt-0.5">94% Completion Rate</span>
+          <div className="text-3xl font-bold text-[#3fb950] mt-1 font-mono">44 <span className="text-sm font-normal text-slate-400">/ 48</span></div>
+          <span className="text-[10px] text-[#3fb950] font-mono block mt-0.5">91% Completion Rate</span>
         </div>
 
         <div className="p-4 rounded-xl bg-[#0e1424] border border-[#1c2438]">
@@ -163,7 +163,7 @@ export default function FacultyPortalPage() {
         </div>
 
         <p className="text-xs text-slate-300 leading-relaxed">
-          The Security Agent detected that <span className="text-[#ff7b72] font-bold">42% of students</span> in Batch B3 are concatenating unsanitized inputs into raw SQL strings without parameterized placeholders, and <span className="text-[#f0883e] font-bold">36%</span> are using asynchronous callbacks inside <code className="text-slate-200">Array.prototype.forEach</code> resulting in unhandled race conditions.
+          The Security Agent detected that <span className="text-[#ff7b72] font-bold">42% of students</span> in this cohort are concatenating unsanitized inputs into raw SQL strings without parameterized placeholders, and <span className="text-[#f0883e] font-bold">36%</span> are using asynchronous callbacks inside <code className="text-slate-200">Array.prototype.forEach</code> resulting in unhandled race conditions.
         </p>
 
         <div className="p-3 rounded-lg bg-[#070a12] border border-[#172033] text-[11px] font-mono text-slate-400">
@@ -176,7 +176,7 @@ export default function FacultyPortalPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#1c2438] gap-3">
           <div>
             <h3 className="text-xs font-bold text-white font-mono uppercase tracking-wider">
-              Student Submissions Roster • Batch B3
+              Student Submissions Roster • Active Cohort
             </h3>
             <p className="text-[11px] text-slate-400">Assignment 1 — Software Engineering &amp; Quality Audit</p>
           </div>

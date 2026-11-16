@@ -158,14 +158,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <Command className="w-3 h-3 text-slate-500" />
             </div>
 
-            {/* Current Project Card (Dynamic) */}
+            {/* Current Project Card (Dynamic & Professional) */}
             <div className="p-2.5 rounded-lg bg-[#111728] border border-[#1e293b]">
               <div className="text-[10px] text-slate-400 font-mono uppercase">Current Project</div>
               <div className="text-xs font-bold text-white mt-0.5 truncate">
-                {user ? `${displayName}'s workspace` : 'Engineering Workspace'}
+                {role === 'faculty' ? 'Faculty Review Workspace' : 'Engineering Workspace'}
               </div>
               <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                {user ? `${role === 'faculty' ? 'Faculty Portal' : 'Student Workspace'} • Active` : 'Guest Session • Sign in to sync'}
+                {user 
+                  ? (role === 'faculty' ? 'Faculty Portal • Active Cohort' : 'Student Developer • Active') 
+                  : 'Public Engineering Workspace • Read-only'}
               </div>
             </div>
           </div>

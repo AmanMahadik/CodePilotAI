@@ -1,11 +1,8 @@
 # CodePilot AI — Autonomous AI Software Engineering Assistant
 
 > **Product Requirements Document & SRS Implementation (CPA-PRD-001 / CPA-SRS-001)**  
-> **Institution**: MIT Academy of Engineering, Alandi (D.), Pune — A.Y. 2025-2026  
-> **Student**: Aman Atmaram Mahadik  
-> **PRN**: 202502100006 | **Roll No**: 68 | **Batch**: B3  
-> **Assignment**: Assignment 1  
-> **Process Model**: Incremental Process Model  
+> **Autonomous AI Software Engineering Assistant**  
+> **Process Model**: Incremental Engineering Process Model  
 
 ---
 
@@ -22,7 +19,7 @@
 - **Session Tokens**: Signed JWT access & refresh token session lifecycle.
 - **Verification & Reset**: Password reset link dispatch (≤ 30 min) and email verification handling (FR-004, FR-006).
 - **Compliance & Deletion**: 30-day user and repository data purge request (FR-007).
-- **Instant Student Demo**: 1-click test login as Aman Mahadik (Roll 68, MIT AOE).
+- **Interactive Demo Access**: 1-click test login for Student Developer or Faculty Reviewer.
 
 ### 2. Dashboard & Progress Trends (FR-021 to FR-040)
 - **Repository List View (FR-021)**: Connected and uploaded repositories with branch tags, language breakdown, and health scores.
@@ -68,7 +65,7 @@
 ### 8. Institutional PDF Report & Shareable Links (FR-211 to FR-230)
 - **Certified PDF Export (FR-211)**: Executive summary, health score radar, and finding breakdowns exported via `jsPDF` and `html2canvas`.
 - **Public Shareable Link (FR-212)**: Read-only public report accessible at `/report/[id]`.
-- **Branding Header Toggle (FR-213)**: Toggle institutional headers for MIT Academy of Engineering, Pune or custom colleges.
+- **Branding Header Toggle (FR-213)**: Toggle institutional headers for academic institutions or custom departments.
 
 ### 9. Phase 2 Features (Preview)
 - **Mock Technical Interview (FR-331)**: Interview simulation grounded in the candidate's repository with AI evaluator feedback.
@@ -120,4 +117,4 @@ http://localhost:3000
 ```
 
 ---
-*Developed for MIT Academy of Engineering, Alandi (D.), Pune | Aman Atmaram Mahadik (PRN: 202502100006, Roll No: 68, Batch B3).*
+*CodePilot AI — Engineering Assistant Platform.*

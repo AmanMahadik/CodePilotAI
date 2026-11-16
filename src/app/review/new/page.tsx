@@ -205,7 +205,7 @@ export default function AddRepositoryPage() {
                 type="text"
                 value={githubUrl}
                 onChange={(e) => setGithubUrl(e.target.value)}
-                placeholder="https://github.com/aman-mahadik/Society_Sync"
+                placeholder="https://github.com/organization/repository-name"
                 className="w-full pl-9 pr-3 py-2 rounded-lg bg-[#0e1424] border border-[#22304d] text-white text-xs font-mono focus:outline-none focus:border-[#388bfd]"
               />
             </div>

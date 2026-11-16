@@ -1,7 +1,6 @@
 -- ==============================================================================
 -- CodePilot AI — Database Migration Schema (PostgreSQL / Supabase)
--- Project: CodePilot AI (MIT Academy of Engineering, Pune)
--- Student: Aman Atmaram Mahadik | Roll No: 68 | Batch: B3
+-- Autonomous AI Software Engineering Assistant (CPA-PRD-001)
 -- ==============================================================================
 
 -- 1. DROP ALL OLD TABLES
@@ -37,7 +36,7 @@ CREATE TABLE public.profiles (
   role TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'faculty')),
   avatar_url TEXT,
   github_username TEXT,
-  institution_name TEXT DEFAULT 'MIT Academy of Engineering, Pune',
+  institution_name TEXT DEFAULT 'Department of Computer Science & Engineering',
   department TEXT DEFAULT 'School of Computer Engineering',
   prn TEXT DEFAULT '202502100006',
   roll_no TEXT DEFAULT '68',
@@ -239,7 +238,7 @@ BEGIN
     assigned_role,
     user_avatar,
     github_nick,
-    'MIT Academy of Engineering, Pune',
+    'Department of Computer Science & Engineering',
     COALESCE(NEW.raw_user_meta_data->>'prn', '202502100006'),
     COALESCE(NEW.raw_user_meta_data->>'roll_no', '68'),
     'B3'
@@ -279,7 +278,7 @@ INSERT INTO public.repositories (
 (
   'e1a2b3c4-0001-4000-8000-000000000001',
   'Society_Sync',
-  'amanmahadik',
+  'developer',
   'github',
   'main',
   'TypeScript',
@@ -292,7 +291,7 @@ INSERT INTO public.repositories (
 (
   'e1a2b3c4-0002-4000-8000-000000000002',
   'Hyperlocal-Civic',
-  'amanmahadik',
+  'developer',
   'github',
   'main',
   'JavaScript',
@@ -305,7 +304,7 @@ INSERT INTO public.repositories (
 (
   'e1a2b3c4-0003-4000-8000-000000000003',
   'Campus-Connect',
-  'amanmahadik',
+  'developer',
   'github',
   'develop',
   'Java',
@@ -318,7 +317,7 @@ INSERT INTO public.repositories (
 (
   'e1a2b3c4-0004-4000-8000-000000000004',
   'Energy-Saver',
-  'amanmahadik',
+  'developer',
   'upload_zip',
   'main',
   'TypeScript',

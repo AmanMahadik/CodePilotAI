@@ -60,7 +60,7 @@ export default function RegisterPage() {
         <div className="text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-xs text-slate-300 font-mono mb-3">
             <GraduationCap className="w-3.5 h-3.5 text-brand-400" />
-            <span>MIT Academy of Engineering, Pune</span>
+            <span>Department of Computer Science &amp; Engineering</span>
           </div>
           <h2 className="text-2xl font-bold text-white tracking-tight">Create your CodePilot Account</h2>
           <p className="text-xs text-slate-400 mt-1">
@@ -147,7 +147,7 @@ export default function RegisterPage() {
                   <input
                     type="text"
                     required
-                    placeholder="Aman Atmaram Mahadik"
+                    placeholder="Alex Morgan"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:outline-none focus:border-brand-500"
@@ -159,7 +159,7 @@ export default function RegisterPage() {
                   <input
                     type="email"
                     required
-                    placeholder="student@mitaoe.ac.in"
+                    placeholder="student@university.edu"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:outline-none focus:border-brand-500"

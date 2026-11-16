@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/supabase/auth-context';
 export default function InstitutionalReportPage() {
   const { user } = useAuth();
   const [includeHeader, setIncludeHeader] = useState(true);
-  const [institution, setInstitution] = useState(user?.user_metadata?.institution || 'MIT Academy of Engineering, Pune');
+  const [institution, setInstitution] = useState(user?.user_metadata?.institution || 'Department of Computer Science & Engineering');
   const [candidateName, setCandidateName] = useState(user?.user_metadata?.full_name || 'Engineering Student / Author');
   const [referenceId, setReferenceId] = useState('REF-2026-001');
   const [copied, setCopied] = useState(false);

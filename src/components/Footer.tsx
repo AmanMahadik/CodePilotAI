@@ -29,8 +29,8 @@ export default function Footer() {
               <Award className="w-3.5 h-3.5 text-amber-400" />
               <span>Academic Specification</span>
             </div>
-            <p className="text-slate-300 font-medium">MIT Academy of Engineering, Pune</p>
-            <p className="text-slate-400">Alandi (D.), Pune — A.Y. 2025-2026</p>
+            <p className="text-slate-300 font-medium">Department of Computer Science &amp; Engineering</p>
+            <p className="text-slate-400">Software Engineering Laboratory — A.Y. 2025-2026</p>
             <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60 font-mono text-[11px] text-slate-300 space-y-1">
               <div>Author: <span className="text-white font-semibold">Engineering Candidate</span></div>
               <div>Specification: <span className="text-brand-300">CPA-PRD-001</span></div>

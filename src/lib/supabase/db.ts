@@ -31,7 +31,7 @@ export async function saveRepositoryToDB(repo: Partial<Repository>) {
 
     const payload = {
       name: repo.name,
-      owner: repo.owner || 'amanmahadik',
+      owner: repo.owner || user?.user_metadata?.user_name || 'developer',
       source: repo.source || 'github',
       branch: repo.branch || 'main',
       url: repo.url,

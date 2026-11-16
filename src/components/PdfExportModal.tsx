@@ -28,7 +28,7 @@ export default function PdfExportModal({ review, isOpen, onClose }: PdfExportMod
     review.institutionBranding?.enabled ?? true
   );
   const [institutionName, setInstitutionName] = useState(
-    review.institutionBranding?.institutionName || 'MIT Academy of Engineering, Alandi (D.), Pune'
+    review.institutionBranding?.institutionName || 'Department of Computer Science & Engineering'
   );
   const [studentName, setStudentName] = useState(
     review.institutionBranding?.studentName || 'Candidate Author'
