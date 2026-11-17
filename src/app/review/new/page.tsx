@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   ArrowUpFromLine, 
   Github, 
@@ -10,23 +10,48 @@ import {
   Loader2, 
   Terminal, 
   CheckCircle2, 
-  ChevronDown 
+  ChevronDown,
+  GitBranch,
+  ExternalLink
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { detectLanguages, runMultiAgentReview } from '@/lib/analysis-engine';
 import { saveRepository, saveReview } from '@/lib/store';
 import { SkillLevel, Repository } from '@/lib/types';
 import { useAuth } from '@/lib/supabase/auth-context';
+import { fetchStudentGithubRepositories, getCachedRepositories } from '@/lib/github';
 
-export default function AddRepositoryPage() {
+function AddRepositoryContent() {
   const router = useRouter();
-  const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const { user, session } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'zip' | 'github'>('zip');
   const [zipFile, setZipFile] = useState<File | null>(null);
   const [zipFileName, setZipFileName] = useState<string>('');
   const [githubUrl, setGithubUrl] = useState('https://github.com/developer/Society_Sync');
   const [skillLevel, setSkillLevel] = useState<SkillLevel>('intermediate');
+  const [userRepos, setUserRepos] = useState<Repository[]>([]);
+  const [selectedRepoId, setSelectedRepoId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const urlParam = searchParams.get('url');
+    if (urlParam) {
+      setGithubUrl(urlParam);
+      setActiveTab('github');
+    }
+
+    const loadRepos = async () => {
+      try {
+        const storedUsername = typeof window !== 'undefined' ? localStorage.getItem('codepilot_student_gh_username') : null;
+        const { repos } = await fetchStudentGithubRepositories(user, session, storedUsername || undefined);
+        setUserRepos(repos);
+      } catch {
+        setUserRepos(getCachedRepositories());
+      }
+    };
+    loadRepos();
+  }, [searchParams, user, session]);
 
   // Exclusion Rules
   const [exclusions, setExclusions] = useState({
@@ -197,17 +222,57 @@ export default function AddRepositoryPage() {
             )}
           </div>
         ) : (
-          <div className="space-y-3 p-4 bg-[#0a0f1d] rounded-xl border border-[#22304d]">
-            <label className="block text-xs font-medium text-slate-300">GitHub Repository URL</label>
-            <div className="relative">
-              <Github className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                value={githubUrl}
-                onChange={(e) => setGithubUrl(e.target.value)}
-                placeholder="https://github.com/organization/repository-name"
-                className="w-full pl-9 pr-3 py-2 rounded-lg bg-[#0e1424] border border-[#22304d] text-white text-xs font-mono focus:outline-none focus:border-[#388bfd]"
-              />
+          <div className="space-y-4 p-4 bg-[#0a0f1d] rounded-xl border border-[#22304d]">
+            {userRepos.length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-2">
+                  Select from your connected repositories ({userRepos.length})
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                  {userRepos.map((repo) => (
+                    <button
+                      key={repo.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedRepoId(repo.id);
+                        if (repo.url) setGithubUrl(repo.url);
+                      }}
+                      className={`text-left p-2.5 rounded-lg border text-xs transition-colors flex items-center justify-between ${
+                        selectedRepoId === repo.id || githubUrl === repo.url
+                          ? 'bg-[#18233c] border-[#388bfd] text-white shadow-sm'
+                          : 'bg-[#0e1424] border-[#1c2438] text-slate-300 hover:border-slate-600'
+                      }`}
+                    >
+                      <div className="truncate mr-2">
+                        <div className="font-semibold truncate">{repo.name}</div>
+                        <div className="text-[10px] text-slate-400 font-mono truncate">
+                          {repo.primaryLanguage || 'Code'} • {repo.branch}
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#238636]/20 text-[#3fb950] shrink-0 border border-[#238636]/30">
+                        Select
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1">Or enter GitHub Repository URL</label>
+              <div className="relative">
+                <Github className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={githubUrl}
+                  onChange={(e) => {
+                    setGithubUrl(e.target.value);
+                    setSelectedRepoId(null);
+                  }}
+                  placeholder="https://github.com/organization/repository-name"
+                  className="w-full pl-9 pr-3 py-2 rounded-lg bg-[#0e1424] border border-[#22304d] text-white text-xs font-mono focus:outline-none focus:border-[#388bfd]"
+                />
+              </div>
             </div>
           </div>
         )}
@@ -357,5 +422,17 @@ export default function AddRepositoryPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AddRepositoryPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-[300px] flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-[#58a6ff]" />
+      </div>
+    }>
+      <AddRepositoryContent />
+    </Suspense>
   );
 }

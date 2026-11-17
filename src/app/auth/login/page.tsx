@@ -28,6 +28,56 @@ export default function AuthAccountPage() {
 
   // Active role tab: student (GitHub) vs faculty (Email)
   const [activePortal, setActivePortal] = useState<'student' | 'faculty'>('student');
+  const [manualGhUser, setManualGhUser] = useState('');
+  const [manualGhLoading, setManualGhLoading] = useState(false);
+
+  // Student GitHub OAuth handler
+  const handleStudentGithubSignIn = async () => {
+    setLoginLoading(true);
+    setLoginError(null);
+    try {
+      const { error } = await signInWithGithub();
+      if (error) {
+        console.error('GitHub sign in error:', error);
+        if (error.message?.includes('not enabled') || (error as { error_code?: string })?.error_code === 'validation_failed') {
+          setLoginError('GitHub Provider is not enabled in Supabase. Go to Supabase Dashboard > Authentication > Providers > GitHub, toggle it ON, enter your Client ID & Secret, and save.');
+        } else {
+          setLoginError(error.message);
+        }
+        setLoginLoading(false);
+      }
+    } catch (err: unknown) {
+      setLoginError((err as Error).message || 'Failed to initiate GitHub authentication');
+      setLoginLoading(false);
+    }
+  };
+
+  const handleManualGithubConnect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualGhUser.trim()) return;
+    setManualGhLoading(true);
+    setLoginError(null);
+    try {
+      const { fetchStudentGithubRepositories } = await import('@/lib/github');
+      const res = await fetchStudentGithubRepositories(null, null, manualGhUser.trim());
+      if (res.error) {
+        setLoginError(`Could not find GitHub user "${manualGhUser}": ${res.error}`);
+        setManualGhLoading(false);
+        return;
+      }
+      // Save active username and redirect
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('codepilot_student_gh_username', manualGhUser.trim());
+        localStorage.setItem('codepilot_demo_active', 'true');
+        localStorage.setItem('codepilot_user_role', 'student');
+      }
+      enableStudentDemo();
+      router.push('/dashboard');
+    } catch (err: unknown) {
+      setLoginError((err as Error).message);
+      setManualGhLoading(false);
+    }
+  };
 
   // Login form state (Faculty)
   const [loginEmail, setLoginEmail] = useState('');
@@ -155,12 +205,22 @@ export default function AuthAccountPage() {
             /* STUDENT LOGIN: GITHUB OAUTH */
             <div className="space-y-4 pt-2">
               <button
-                onClick={() => signInWithGithub()}
+                onClick={handleStudentGithubSignIn}
+                disabled={loginLoading}
                 type="button"
-                className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-bold shadow-md transition-colors"
+                className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-bold shadow-md transition-colors disabled:opacity-50"
               >
-                <Github className="w-4 h-4" />
-                <span>Sign in with GitHub (Student Auth)</span>
+                {loginLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Connecting to GitHub...</span>
+                  </>
+                ) : (
+                  <>
+                    <Github className="w-4 h-4" />
+                    <span>Sign in with GitHub (Student Auth)</span>
+                  </>
+                )}
               </button>
 
               <div className="p-3.5 rounded-lg bg-[#070a12] border border-[#172033] text-slate-400 font-mono text-[11px] space-y-1">
@@ -168,6 +228,33 @@ export default function AuthAccountPage() {
                 <div>• read:user (Student profile &amp; avatar)</div>
                 <div>• user:email (Verified university email)</div>
                 <div>• repo (Public &amp; assigned classroom code)</div>
+              </div>
+
+              {/* Direct GitHub Username Connect */}
+              <div className="p-3.5 rounded-xl bg-[#0b1220] border border-[#1c2a47] space-y-2.5">
+                <div className="text-[11px] font-bold text-white flex items-center gap-1.5">
+                  <Github className="w-3.5 h-3.5 text-[#58a6ff]" />
+                  <span>Connect Student Repositories via GitHub Handle</span>
+                </div>
+                <form onSubmit={handleManualGithubConnect} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={manualGhUser}
+                    onChange={(e) => setManualGhUser(e.target.value)}
+                    placeholder="Enter GitHub username (e.g. octocat)..."
+                    className="flex-1 px-3 py-1.5 rounded-lg bg-[#070a12] border border-[#172033] text-xs text-white placeholder:text-slate-600 font-mono focus:outline-none focus:border-[#388bfd]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={manualGhLoading || !manualGhUser.trim()}
+                    className="px-3 py-1.5 rounded-lg bg-[#1f6feb] hover:bg-[#388bfd] text-white text-xs font-semibold transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1"
+                  >
+                    {manualGhLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <span>Load</span>}
+                  </button>
+                </form>
+                <div className="text-[10px] text-slate-400 font-mono">
+                  Instantly imports and reflects all public repositories into your workspace.
+                </div>
               </div>
 
               {/* Student Demo Blue Card */}

@@ -1,69 +1,64 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Plus, GitBranch, ArrowRight, ExternalLink } from 'lucide-react';
+import { Plus, GitBranch, ArrowRight, ExternalLink, RefreshCw, Loader2, Github } from 'lucide-react';
 import { useAuth } from '@/lib/supabase/auth-context';
+import { Repository } from '@/lib/types';
+import { fetchStudentGithubRepositories, getCachedRepositories } from '@/lib/github';
 
 export default function RepositoriesPage() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [activeFilter, setActiveFilter] = useState<'all' | 'connected' | 'languages'>('all');
-  const repoOwner = user?.user_metadata?.user_name || user?.email?.split('@')[0] || 'workspace';
+  const [repos, setRepos] = useState<Repository[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
-  const repos = [
-    {
-      id: 'repo-1',
-      name: 'Society_Sync',
-      owner: repoOwner,
-      repoName: 'Society_Sync',
-      language: 'TypeScript',
-      langColor: '#58a6ff',
-      branch: 'main',
-      score: '92 / 100',
-      scoreColor: 'text-[#3fb950] bg-[#238636]/15 border-[#238636]/30',
-      findings: '4 open',
-      lastReview: '12 min ago',
-    },
-    {
-      id: 'repo-2',
-      name: 'Hyperlocal-Civic',
-      owner: repoOwner,
-      repoName: 'civic-reporter',
-      language: 'JavaScript',
-      langColor: '#f0883e',
-      branch: 'main',
-      score: '78 / 100',
-      scoreColor: 'text-[#f0883e] bg-[#bb8009]/15 border-[#bb8009]/30',
-      findings: '12 open',
-      lastReview: 'Yesterday',
-    },
-    {
-      id: 'repo-3',
-      name: 'Campus-Connect',
-      owner: repoOwner,
-      repoName: 'campus-connect',
-      language: 'Java',
-      langColor: '#d29922',
-      branch: 'develop',
-      score: '88 / 100',
-      scoreColor: 'text-[#3fb950] bg-[#238636]/15 border-[#238636]/30',
-      findings: '7 open',
-      lastReview: '2 days ago',
-    },
-    {
-      id: 'repo-4',
-      name: 'Energy-Saver',
-      owner: repoOwner,
-      repoName: 'energy-saver',
-      language: 'TypeScript',
-      langColor: '#58a6ff',
-      branch: 'main',
-      score: '85 / 100',
-      scoreColor: 'text-[#e3b341] bg-[#bb8009]/15 border-[#bb8009]/30',
-      findings: '5 open',
-      lastReview: '4 days ago',
-    },
-  ];
+  const loadRepos = async (forceSync = false) => {
+    if (forceSync) setSyncing(true);
+    else setLoading(true);
+
+    try {
+      const storedUsername = typeof window !== 'undefined' ? localStorage.getItem('codepilot_student_gh_username') : null;
+      const { repos: loadedRepos } = await fetchStudentGithubRepositories(
+        user, 
+        session, 
+        storedUsername || undefined
+      );
+      setRepos(loadedRepos);
+    } catch (e) {
+      console.warn('Error loading repos:', e);
+      setRepos(getCachedRepositories());
+    } finally {
+      setLoading(false);
+      setSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRepos();
+  }, [user, session]);
+
+  const uniqueLanguages = Array.from(new Set(repos.map((r) => r.primaryLanguage || 'TypeScript')));
+
+  const filteredRepos = repos.filter((r) => {
+    if (activeFilter === 'languages') return Boolean(r.primaryLanguage);
+    return true;
+  });
+
+  const getLanguageColor = (lang: string) => {
+    switch (lang.toLowerCase()) {
+      case 'typescript': return '#58a6ff';
+      case 'javascript': return '#f0883e';
+      case 'python': return '#3572A5';
+      case 'java': return '#b07219';
+      case 'c++':
+      case 'cpp': return '#f34b7d';
+      case 'go': return '#00ADD8';
+      case 'html': return '#e34c26';
+      default: return '#58a6ff';
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -81,13 +76,24 @@ export default function RepositoriesPage() {
           </p>
         </div>
 
-        <Link
-          href="/review/new"
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-semibold shadow-sm transition-colors shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Import repository</span>
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => loadRepos(true)}
+            disabled={syncing}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-[#161f33] hover:bg-[#1e2a45] text-slate-300 hover:text-white text-xs font-semibold border border-[#22304d] transition-colors shrink-0 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-[#58a6ff]' : ''}`} />
+            <span>{syncing ? 'Syncing...' : 'Sync GitHub'}</span>
+          </button>
+
+          <Link
+            href="/review/new"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-semibold shadow-sm transition-colors shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Import repository</span>
+          </Link>
+        </div>
       </div>
 
       {/* Filter Pills */}
@@ -100,7 +106,7 @@ export default function RepositoriesPage() {
               : 'bg-[#101625] text-slate-400 hover:text-slate-200 border border-[#1c2438]'
           }`}
         >
-          4 total
+          {repos.length} total
         </button>
         <button
           onClick={() => setActiveFilter('connected')}
@@ -110,7 +116,7 @@ export default function RepositoriesPage() {
               : 'bg-[#101625] text-slate-400 hover:text-slate-200 border border-[#1c2438]'
           }`}
         >
-          4 connected
+          {repos.length} connected
         </button>
         <button
           onClick={() => setActiveFilter('languages')}
@@ -120,7 +126,7 @@ export default function RepositoriesPage() {
               : 'bg-[#101625] text-slate-400 hover:text-slate-200 border border-[#1c2438]'
           }`}
         >
-          3 languages
+          {uniqueLanguages.length} languages
         </button>
       </div>
 
@@ -134,51 +140,86 @@ export default function RepositoriesPage() {
                 <th className="pb-3 font-semibold">LANGUAGE</th>
                 <th className="pb-3 font-semibold">BRANCH</th>
                 <th className="pb-3 font-semibold">HEALTH SCORE</th>
-                <th className="pb-3 font-semibold">FINDINGS</th>
-                <th className="pb-3 font-semibold text-right">LAST REVIEW</th>
+                <th className="pb-3 font-semibold">STATUS</th>
+                <th className="pb-3 font-semibold text-right">ACTION</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#172033]">
-              {repos.map((repo) => (
-                <tr key={repo.id} className="hover:bg-[#131b2e] transition-colors group">
-                  <td className="py-3.5">
-                    <Link href={`/review/rev-1`} className="flex items-start gap-2.5">
-                      <span className="w-3.5 h-3.5 mt-0.5 rounded border border-slate-600 inline-block shrink-0"></span>
-                      <div>
-                        <div className="font-semibold text-white group-hover:text-[#58a6ff] transition-colors text-xs">
-                          {repo.name}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          {repo.owner} / {repo.repoName}
-                        </div>
-                      </div>
-                    </Link>
-                  </td>
-                  <td className="py-3.5">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: repo.langColor }}></span>
-                      <span>{repo.language}</span>
-                    </div>
-                  </td>
-                  <td className="py-3.5">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#161f33] border border-[#22304d] text-[10px] font-mono text-slate-300">
-                      <GitBranch className="w-2.5 h-2.5 text-slate-400" />
-                      <span>{repo.branch}</span>
-                    </span>
-                  </td>
-                  <td className="py-3.5">
-                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${repo.scoreColor}`}>
-                      {repo.score}
-                    </span>
-                  </td>
-                  <td className="py-3.5 text-xs text-slate-300 font-mono font-medium">
-                    {repo.findings}
-                  </td>
-                  <td className="py-3.5 text-right text-[11px] text-slate-400 font-mono">
-                    {repo.lastReview}
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-xs text-slate-400">
+                    <Loader2 className="w-4 h-4 animate-spin inline-block mr-2 text-[#58a6ff]" />
+                    <span>Loading repositories from GitHub...</span>
                   </td>
                 </tr>
-              ))}
+              ) : filteredRepos.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-xs text-slate-400 font-mono">
+                    No repositories found matching this filter.
+                  </td>
+                </tr>
+              ) : (
+                filteredRepos.map((repo) => (
+                  <tr key={repo.id} className="hover:bg-[#131b2e] transition-colors group">
+                    <td className="py-3.5">
+                      <Link href={`/review/new?url=${encodeURIComponent(repo.url || '')}&name=${encodeURIComponent(repo.name)}`} className="flex items-start gap-2.5">
+                        <span className="w-3.5 h-3.5 mt-0.5 rounded border border-slate-600 inline-block shrink-0"></span>
+                        <div>
+                          <div className="font-semibold text-white group-hover:text-[#58a6ff] transition-colors text-xs flex items-center gap-2">
+                            <span>{repo.name}</span>
+                            {repo.url && (
+                              <a
+                                href={repo.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-slate-500 hover:text-slate-300"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-mono">
+                            {repo.owner} / {repo.name}
+                          </div>
+                        </div>
+                      </Link>
+                    </td>
+                    <td className="py-3.5">
+                      <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
+                        <span
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: getLanguageColor(repo.primaryLanguage || 'TypeScript') }}
+                        ></span>
+                        <span>{repo.primaryLanguage || 'TypeScript'}</span>
+                      </div>
+                    </td>
+                    <td className="py-3.5">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#161f33] border border-[#22304d] text-[10px] font-mono text-slate-300">
+                        <GitBranch className="w-2.5 h-2.5 text-slate-400" />
+                        <span>{repo.branch}</span>
+                      </span>
+                    </td>
+                    <td className="py-3.5">
+                      <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border text-[#3fb950] bg-[#238636]/15 border-[#238636]/30">
+                        {repo.latestScore || 88} / 100
+                      </span>
+                    </td>
+                    <td className="py-3.5 text-xs text-slate-400 font-mono">
+                      {repo.lastReviewedAt || 'Connected'}
+                    </td>
+                    <td className="py-3.5 text-right">
+                      <Link
+                        href={`/review/new?url=${encodeURIComponent(repo.url || '')}&name=${encodeURIComponent(repo.name)}`}
+                        className="inline-flex items-center gap-1 px-3 py-1 rounded bg-[#238636]/20 hover:bg-[#238636]/30 text-[#3fb950] border border-[#238636]/40 text-[11px] font-mono font-semibold transition-colors"
+                      >
+                        <span>Start Review</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

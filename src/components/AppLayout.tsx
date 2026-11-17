@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
@@ -29,6 +29,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, role, signOut } = useAuth();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [repoCount, setRepoCount] = useState(4);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('codepilot_student_repos');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) setRepoCount(parsed.length);
+        }
+      } catch {}
+    }
+  }, [pathname]);
 
   const isCurrent = (path: string) => {
     if (path === '/dashboard' && (pathname === '/' || pathname === '/dashboard')) return true;
@@ -207,7 +220,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <span>Repositories</span>
                   </div>
                   <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#1c273f] text-slate-300">
-                    4
+                    {repoCount}
                   </span>
                 </Link>
 
