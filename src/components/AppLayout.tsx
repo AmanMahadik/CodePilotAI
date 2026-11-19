@@ -15,11 +15,10 @@ import {
   Settings, 
   Shield, 
   Command, 
-  MoreHorizontal,
-  Bot,
   School,
   LogOut,
-  User as UserIcon
+  User as UserIcon,
+  RotateCw
 } from 'lucide-react';
 import Logo from '@/components/Logo';
 import { useAuth } from '@/lib/supabase/auth-context';
@@ -27,9 +26,13 @@ import { useAuth } from '@/lib/supabase/auth-context';
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, role, signOut } = useAuth();
+  const { user, role, signOut, switchRole } = useAuth();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const [repoCount, setRepoCount] = useState(4);
+  const [repoCount, setRepoCount] = useState(0);
+  const [latestReviewId, setLatestReviewId] = useState<string | null>(null);
+  const [findingsCount, setFindingsCount] = useState<number>(0);
+
+  const isFaculty = role === 'faculty' || pathname.startsWith('/faculty');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -38,12 +41,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         if (stored) {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed)) setRepoCount(parsed.length);
+        } else {
+          setRepoCount(0);
+        }
+
+        const storedReviews = localStorage.getItem('codepilot_reviews');
+        if (storedReviews) {
+          const parsed = JSON.parse(storedReviews);
+          const revs = Object.values(parsed) as Array<{ id: string; findings?: unknown[] }>;
+          if (revs.length > 0) {
+            setLatestReviewId(revs[0].id);
+            const total = revs.reduce((acc, r) => acc + (r.findings?.length || 0), 0);
+            setFindingsCount(total);
+          }
         }
       } catch {}
     }
   }, [pathname]);
 
   const isCurrent = (path: string) => {
+    if (isFaculty) {
+      if (path === '/faculty' && (pathname === '/' || pathname === '/faculty')) return true;
+      if (path !== '/faculty' && pathname.startsWith(path)) return true;
+      return false;
+    }
     if (path === '/dashboard' && (pathname === '/' || pathname === '/dashboard')) return true;
     if (path !== '/dashboard' && pathname.startsWith(path)) return true;
     return false;
@@ -64,29 +85,104 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || '';
 
+  // Standalone authentication layout check
+  const isAuthRoute = pathname.startsWith('/auth') || (pathname === '/' && !user);
+
+  // If on login/registration/auth portal or unauthenticated root, render the standalone module layout
+  if (isAuthRoute) {
+    return (
+      <div className="min-h-screen bg-[#090d16] text-[#e6edf3] flex flex-col font-sans antialiased selection:bg-[#1f6feb]/30 selection:text-white">
+        {/* Sleek Minimalist Authentication Header */}
+        <header className="h-14 bg-[#0c101b]/95 backdrop-blur-md border-b border-[#1c2438] px-4 sm:px-8 py-2.5 flex items-center justify-between sticky top-0 z-50 shrink-0">
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <Logo size={32} rounded="rounded-xl" className="shadow-md shadow-blue-500/10 group-hover:scale-105 transition-transform" />
+            <div className="flex items-center gap-2 text-xs">
+              <span className="font-bold text-white text-sm tracking-tight">CodePilot</span>
+              <span className="text-[#58a6ff] font-semibold text-xs px-1.5 py-0.5 rounded bg-[#1f6feb]/15 border border-[#1f6feb]/30">AI</span>
+              <span className="text-slate-600 hidden sm:inline">/</span>
+              <span className="text-slate-400 font-medium hidden sm:inline text-xs">Autonomous Engineering Assistant</span>
+            </div>
+          </Link>
+
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-[#161f33] border border-[#22304d] text-[11px] font-mono text-slate-300">
+              <span className="w-2 h-2 rounded-full bg-[#3fb950] animate-pulse" />
+              <span>Platform Active</span>
+            </div>
+
+            <Link
+              href="/documentation"
+              className="text-xs text-slate-300 hover:text-white transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#161f33]/70 hover:bg-[#1e2a45] border border-[#22304d]"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-slate-400" />
+              <span className="hidden sm:inline">Documentation</span>
+            </Link>
+          </div>
+        </header>
+
+        {/* Clean, Full-Width Auth Content Area (No distracting dashboard sidebar) */}
+        <main className="flex-1 overflow-y-auto flex flex-col justify-between relative bg-gradient-to-b from-[#0c111e]/40 via-[#090d16] to-[#090d16]">
+          {/* Subtle ambient lighting effect */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-6xl h-96 bg-gradient-to-b from-blue-600/5 to-transparent pointer-events-none blur-3xl -z-10" />
+
+          <div className="py-8 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto w-full flex-1 flex flex-col justify-center">
+            {children}
+          </div>
+
+          {/* Clean Authentication Footer */}
+          <footer className="px-6 py-4 border-t border-[#1c2438] flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 font-mono gap-2 shrink-0 bg-[#0c101b]/60">
+            <span>© 2026 CodePilot AI • Incremental Engineering Process (CPA-PRD-001)</span>
+            <div className="flex items-center gap-4 text-slate-400">
+              <Link href="/documentation" className="hover:text-slate-200">OWASP Top 10</Link>
+              <span>•</span>
+              <Link href="/documentation" className="hover:text-slate-200">Multi-Agent Pipeline</Link>
+              <span>•</span>
+              <span className="text-slate-500">v1.0.0-production</span>
+            </div>
+          </footer>
+        </main>
+      </div>
+    );
+  }
+
+  // Full Workspace Dashboard Layout (Role-Specific)
   return (
     <div className="min-h-screen bg-[#090d16] text-[#e6edf3] flex flex-col font-sans antialiased">
       {/* Top Header Bar */}
-      <header className="h-13 bg-[#0c101b] border-b border-[#1c2438] px-4 py-2.5 flex items-center justify-between sticky top-0 z-50 shrink-0">
+      <header className="h-14 bg-[#0c101b] border-b border-[#1c2438] px-4 py-2.5 flex items-center justify-between sticky top-0 z-50 shrink-0">
         <div className="flex items-center gap-2.5">
           {/* Official CodePilot Project Logo */}
-          <Link href="/dashboard" className="flex items-center gap-2.5 group">
+          <Link href={isFaculty ? "/faculty" : "/dashboard"} className="flex items-center gap-2.5 group">
             <Logo size={30} className="shadow-md group-hover:scale-105 transition-transform" />
             <div className="flex items-center gap-1.5 text-xs">
               <span className="font-bold text-white text-sm tracking-tight">CodePilot</span>
               <span className="text-slate-400 font-normal">AI</span>
               <span className="text-slate-600 mx-1">/</span>
-              <span className="text-slate-400 font-medium">Engineering Workspace</span>
+              {role === 'faculty' ? (
+                <span className="text-[#3fb950] font-semibold flex items-center gap-1.5">
+                  <School className="w-3.5 h-3.5" />
+                  <span>Faculty Evaluation Portal</span>
+                </span>
+              ) : (
+                <span className="text-slate-400 font-medium">Engineering Workspace</span>
+              )}
             </div>
           </Link>
         </div>
 
         <div className="flex items-center gap-2.5">
-          {/* Security finding counter badge */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#161f33] border border-[#22304d] text-xs font-mono text-slate-300">
-            <Shield className="w-3.5 h-3.5 text-slate-400" />
-            <span>3</span>
-          </div>
+          {/* Role-specific status badge */}
+          {role === 'faculty' ? (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#238636]/15 border border-[#238636]/40 text-xs font-mono text-[#3fb950]">
+              <School className="w-3.5 h-3.5 text-[#3fb950]" />
+              <span>Academic Evaluator</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#161f33] border border-[#22304d] text-xs font-mono text-slate-300">
+              <Shield className="w-3.5 h-3.5 text-slate-400" />
+              <span>{findingsCount || 15}</span>
+            </div>
+          )}
 
           {/* Conditional Auth in Header */}
           {user ? (
@@ -128,13 +224,41 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   </div>
 
                   <Link
-                    href="/dashboard"
+                    href={role === 'faculty' ? "/faculty" : "/dashboard"}
                     onClick={() => setUserDropdownOpen(false)}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-md text-slate-300 hover:bg-[#161f33] hover:text-white transition-colors"
                   >
-                    <LayoutGrid className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Dashboard</span>
+                    {role === 'faculty' ? (
+                      <>
+                        <School className="w-3.5 h-3.5 text-[#3fb950]" />
+                        <span>Faculty Portal</span>
+                      </>
+                    ) : (
+                      <>
+                        <LayoutGrid className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Dashboard</span>
+                      </>
+                    )}
                   </Link>
+
+                  {/* 1-Click Role Switcher */}
+                  <button
+                    onClick={async () => {
+                      const nextRole = role === 'faculty' ? 'student' : 'faculty';
+                      await switchRole(nextRole);
+                      setUserDropdownOpen(false);
+                      router.push(nextRole === 'faculty' ? '/faculty' : '/dashboard');
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-1.5 rounded-md text-slate-300 hover:bg-[#161f33] hover:text-white transition-colors text-left"
+                  >
+                    <span className="flex items-center gap-2">
+                      <RotateCw className="w-3.5 h-3.5 text-[#58a6ff]" />
+                      <span>{role === 'faculty' ? 'Switch to Student' : 'Switch to Faculty'}</span>
+                    </span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#161f33] text-slate-400 border border-[#22304d]">
+                      Toggle
+                    </span>
+                  </button>
 
                   <button
                     onClick={() => {
@@ -161,185 +285,278 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* Main Workspace with Landscape Left Sidebar */}
+      {/* Main Workspace with Role-Specific Left Sidebar */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar */}
         <aside className="w-64 bg-[#0c101b] border-r border-[#1c2438] flex flex-col shrink-0 select-none">
           <div className="p-3 border-b border-[#1c2438]">
             <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 uppercase tracking-wider mb-2">
-              <span>Workspace</span>
+              <span>{isFaculty ? 'Evaluation Context' : 'Workspace'}</span>
               <Command className="w-3 h-3 text-slate-500" />
             </div>
 
-            {/* Current Project Card (Dynamic & Professional) */}
+            {/* Current Project / Cohort Card */}
             <div className="p-2.5 rounded-lg bg-[#111728] border border-[#1e293b]">
-              <div className="text-[10px] text-slate-400 font-mono uppercase">Current Project</div>
+              <div className="text-[10px] text-slate-400 font-mono uppercase">
+                {isFaculty ? 'Active Cohort' : 'Current Project'}
+              </div>
               <div className="text-xs font-bold text-white mt-0.5 truncate">
-                {role === 'faculty' ? 'Faculty Review Workspace' : 'Engineering Workspace'}
+                {isFaculty ? 'Classroom Code Audit' : 'Engineering Workspace'}
               </div>
               <div className="text-[10px] text-slate-400 font-mono mt-0.5">
                 {user 
-                  ? (role === 'faculty' ? 'Faculty Portal • Active Cohort' : 'Student Developer • Active') 
+                  ? (isFaculty ? 'Faculty Portal • Active Cohort' : 'Student Developer • Active') 
                   : 'Public Engineering Workspace • Read-only'}
               </div>
             </div>
           </div>
 
-          {/* Navigation Links */}
+          {/* Navigation Links (Tailored to User Role) */}
           <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
-            {/* Section 1: ENGINEERING */}
-            <div>
-              <div className="px-2 text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                Engineering
-              </div>
-              <nav className="space-y-0.5">
-                <Link
-                  href="/dashboard"
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    isCurrent('/dashboard')
-                      ? 'bg-[#18233c] text-white font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <LayoutGrid className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Overview</span>
+            {isFaculty ? (
+              /* ================== FACULTY ROLE SIDEBAR ================== */
+              <>
+                {/* Section 1: ACADEMIC EVALUATION */}
+                <div>
+                  <div className="px-2 text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Academic Evaluation
                   </div>
-                </Link>
+                  <nav className="space-y-0.5">
+                    <Link
+                      href="/faculty"
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        isCurrent('/faculty')
+                          ? 'bg-[#18233c] text-white font-semibold'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <School className="w-3.5 h-3.5 text-[#3fb950]" />
+                        <span>Classroom Submissions</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#238636]/20 text-[#3fb950] border border-[#238636]/30">
+                        Staff
+                      </span>
+                    </Link>
 
-                <Link
-                  href="/repositories"
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    isCurrent('/repositories')
-                      ? 'bg-[#18233c] text-white font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <FolderGit2 className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Repositories</span>
-                  </div>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#1c273f] text-slate-300">
-                    {repoCount}
-                  </span>
-                </Link>
+                    <Link
+                      href={latestReviewId ? `/report/${latestReviewId}` : '/report/default'}
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        isCurrent('/report')
+                          ? 'bg-[#18233c] text-white font-semibold'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <FileText className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Student Audit Reports</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#1c273f] text-slate-400">
+                        Audit
+                      </span>
+                    </Link>
 
-                <Link
-                  href="/review/new"
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    isCurrent('/review/new')
-                      ? 'bg-[#18233c] text-white font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <ArrowUpFromLine className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Add repository</span>
-                  </div>
-                </Link>
+                    <Link
+                      href="/interview/default"
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        isCurrent('/interview')
+                          ? 'bg-[#18233c] text-white font-semibold'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Interview Assessments</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#8957e5]/20 text-[#a371f7] border border-[#8957e5]/30">
+                        Practice
+                      </span>
+                    </Link>
+                  </nav>
+                </div>
 
-                <Link
-                  href="/review/rev-1"
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    isCurrent('/review/rev-1')
-                      ? 'bg-[#18233c] text-white font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Search className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Code review</span>
+                {/* Section 2: INSTITUTIONAL GOVERNANCE */}
+                <div>
+                  <div className="px-2 text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Institutional Governance
                   </div>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#da3633] text-white font-bold">
-                    7
-                  </span>
-                </Link>
+                  <nav className="space-y-0.5">
+                    <Link
+                      href="/documentation"
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        isCurrent('/documentation')
+                          ? 'bg-[#18233c] text-white font-semibold'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <BookOpen className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Curriculum &amp; Rubrics</span>
+                      </div>
+                    </Link>
 
-                <Link
-                  href="/chat/repo-1"
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    isCurrent('/chat')
-                      ? 'bg-[#18233c] text-white font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Terminal className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Terminal AI</span>
+                    <Link
+                      href="/dashboard"
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        pathname === '/dashboard'
+                          ? 'bg-[#18233c] text-white font-semibold'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <LayoutGrid className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Student View Preview</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#1c273f] text-slate-400">
+                        Preview
+                      </span>
+                    </Link>
+                  </nav>
+                </div>
+              </>
+            ) : (
+              /* ================== STUDENT ROLE SIDEBAR ================== */
+              <>
+                {/* Section 1: ENGINEERING */}
+                <div>
+                  <div className="px-2 text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Engineering
                   </div>
-                </Link>
+                  <nav className="space-y-0.5">
+                    <Link
+                      href="/dashboard"
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        isCurrent('/dashboard')
+                          ? 'bg-[#18233c] text-white font-semibold'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <LayoutGrid className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Overview</span>
+                      </div>
+                    </Link>
 
-                <Link
-                  href="/documentation"
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    isCurrent('/documentation')
-                      ? 'bg-[#18233c] text-white font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <BookOpen className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Documentation</span>
-                  </div>
-                </Link>
-              </nav>
-            </div>
+                    <Link
+                      href="/repositories"
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        isCurrent('/repositories')
+                          ? 'bg-[#18233c] text-white font-semibold'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <FolderGit2 className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Repositories</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#1c273f] text-slate-300">
+                        {repoCount}
+                      </span>
+                    </Link>
 
-            {/* Section 2: REPORTS & LEARNING */}
-            <div>
-              <div className="px-2 text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                Reports &amp; Learning
-              </div>
-              <nav className="space-y-0.5">
-                <Link
-                  href="/report/rev-1"
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    isCurrent('/report')
-                      ? 'bg-[#18233c] text-white font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <FileText className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Reports</span>
-                  </div>
-                </Link>
+                    <Link
+                      href="/review/new"
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        isCurrent('/review/new')
+                          ? 'bg-[#18233c] text-white font-semibold'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <ArrowUpFromLine className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Add repository</span>
+                      </div>
+                    </Link>
 
-                <Link
-                  href="/faculty"
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    isCurrent('/faculty')
-                      ? 'bg-[#18233c] text-white font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <School className="w-3.5 h-3.5 text-[#3fb950]" />
-                    <span>Faculty Portal</span>
-                  </div>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#238636]/20 text-[#3fb950] border border-[#238636]/30">
-                    Staff
-                  </span>
-                </Link>
+                    <Link
+                      href={latestReviewId ? `/review/${latestReviewId}` : '/review/new'}
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        pathname.startsWith('/review')
+                          ? 'bg-[#18233c] text-white font-semibold'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Search className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Code review</span>
+                      </div>
+                      {findingsCount > 0 && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#da3633] text-white font-bold">
+                          {findingsCount}
+                        </span>
+                      )}
+                    </Link>
 
-                <Link
-                  href="/interview/repo-1"
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    isCurrent('/interview')
-                      ? 'bg-[#18233c] text-white font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Interview simulator</span>
+                    <Link
+                      href="/chat/default"
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        isCurrent('/chat')
+                          ? 'bg-[#18233c] text-white font-semibold'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Terminal className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Terminal AI</span>
+                      </div>
+                    </Link>
+
+                    <Link
+                      href="/documentation"
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        isCurrent('/documentation')
+                          ? 'bg-[#18233c] text-white font-semibold'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <BookOpen className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Documentation</span>
+                      </div>
+                    </Link>
+                  </nav>
+                </div>
+
+                {/* Section 2: REPORTS & LEARNING */}
+                <div>
+                  <div className="px-2 text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Reports &amp; Learning
                   </div>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#8957e5]/20 text-[#a371f7] border border-[#8957e5]/30">
-                    Beta
-                  </span>
-                </Link>
-              </nav>
-            </div>
+                  <nav className="space-y-0.5">
+                    <Link
+                      href={latestReviewId ? `/report/${latestReviewId}` : '/report/default'}
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        isCurrent('/report')
+                          ? 'bg-[#18233c] text-white font-semibold'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <FileText className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Reports</span>
+                      </div>
+                    </Link>
+
+                    <Link
+                      href="/interview/default"
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                        isCurrent('/interview')
+                          ? 'bg-[#18233c] text-white font-semibold'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-[#131a2c]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Interview simulator</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#8957e5]/20 text-[#a371f7] border border-[#8957e5]/30">
+                        Beta
+                      </span>
+                    </Link>
+                  </nav>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Sidebar Footer User Pill (Dynamic) */}
@@ -355,7 +572,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       className="w-7 h-7 rounded-full object-cover shrink-0"
                     />
                   ) : (
-                    <div className={`w-7 h-7 rounded-full text-white flex items-center justify-center text-xs font-bold shrink-0 ${role === 'faculty' ? 'bg-[#238636]' : 'bg-[#1f6feb]'}`}>
+                    <div className={`w-7 h-7 rounded-full text-white flex items-center justify-center text-xs font-bold shrink-0 ${isFaculty ? 'bg-[#238636]' : 'bg-[#1f6feb]'}`}>
                       {getInitials()}
                     </div>
                   )}
@@ -364,12 +581,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       {displayName}
                     </div>
                     <div className="text-[10px] text-slate-400 font-mono truncate">
-                      {role === 'faculty' ? 'Faculty Member' : 'Student Developer'}
+                      {isFaculty ? 'Faculty Member' : 'Student Developer'}
                     </div>
                   </div>
                 </div>
                 <button
-                  onClick={() => signOut()}
+                  onClick={async () => {
+                    await signOut();
+                    router.push('/auth/login');
+                  }}
                   className="p-1 rounded text-slate-500 hover:text-rose-400 transition-colors"
                   title="Sign out"
                 >

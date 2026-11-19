@@ -29,7 +29,7 @@ function AddRepositoryContent() {
   const [activeTab, setActiveTab] = useState<'zip' | 'github'>('zip');
   const [zipFile, setZipFile] = useState<File | null>(null);
   const [zipFileName, setZipFileName] = useState<string>('');
-  const [githubUrl, setGithubUrl] = useState('https://github.com/developer/Society_Sync');
+  const [githubUrl, setGithubUrl] = useState('');
   const [skillLevel, setSkillLevel] = useState<SkillLevel>('intermediate');
   const [userRepos, setUserRepos] = useState<Repository[]>([]);
   const [selectedRepoId, setSelectedRepoId] = useState<string | null>(null);
@@ -126,7 +126,7 @@ function AddRepositoryContent() {
     ]);
 
     // Build review and navigate
-    const repoName = zipFileName ? zipFileName.replace('.zip', '') : 'Society_Sync';
+    const repoName = zipFileName ? zipFileName.replace('.zip', '') : (githubUrl ? githubUrl.split('/').pop() || 'Repository' : 'Repository');
     const review = await runMultiAgentReview(repoName, 'main', skillLevel, {}, {
       enabled: true,
       institutionName: user?.user_metadata?.institution || 'Engineering Workspace',

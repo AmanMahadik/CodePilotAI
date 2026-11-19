@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
+import type { Session } from '@supabase/supabase-js';
 import { fetchStudentGithubRepositories } from '@/lib/github';
 import Logo from '@/components/Logo';
 import { Loader2, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
@@ -18,7 +19,7 @@ function AuthCallbackContent() {
   useEffect(() => {
     let isMounted = true;
 
-    const completeSessionAndRedirect = async (session: any, nextUrl: string) => {
+    const completeSessionAndRedirect = async (session: Session, nextUrl: string) => {
       if (!isMounted) return;
       setSessionFound(true);
       setStatusMessage('Syncing your GitHub repositories into workspace...');

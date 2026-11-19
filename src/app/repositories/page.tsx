@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Plus, GitBranch, ArrowRight, ExternalLink, RefreshCw, Loader2, Github } from 'lucide-react';
 import { useAuth } from '@/lib/supabase/auth-context';
@@ -14,7 +14,7 @@ export default function RepositoriesPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
-  const loadRepos = async (forceSync = false) => {
+  const loadRepos = useCallback(async (forceSync = false) => {
     if (forceSync) setSyncing(true);
     else setLoading(true);
 
@@ -33,7 +33,7 @@ export default function RepositoriesPage() {
       setLoading(false);
       setSyncing(false);
     }
-  };
+  }, [user, session]);
 
   useEffect(() => {
     loadRepos();

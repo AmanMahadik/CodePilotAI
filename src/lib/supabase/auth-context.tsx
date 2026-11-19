@@ -21,6 +21,7 @@ interface AuthContextType {
   enableStudentDemo: () => void;
   enableFacultyDemo: () => void;
   enableDemoUser: () => void;
+  switchRole: (role: UserRole) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,6 +33,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isDemoUser, setIsDemoUser] = useState(false);
 
+  const resolveUserRole = (u: User | null): UserRole => {
+    if (!u) {
+      const stored = typeof window !== 'undefined' ? (localStorage.getItem('codepilot_user_role') as UserRole) : null;
+      return stored || 'student';
+    }
+
+    // Aman Mahadik is explicitly a Student Developer
+    const email = (u.email || '').toLowerCase();
+    const fullName = ((u.user_metadata?.full_name as string) || '').toLowerCase();
+    if (email.includes('amanmahadik') || fullName.includes('aman mahadik')) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('codepilot_user_role', 'student');
+      }
+      return 'student';
+    }
+
+    // Check localStorage saved role
+    const storedRole = typeof window !== 'undefined' ? (localStorage.getItem('codepilot_user_role') as UserRole) : null;
+    if (storedRole) return storedRole;
+
+    // Check metadata role if explicitly set
+    if (u.user_metadata?.role === 'faculty') return 'faculty';
+    if (u.user_metadata?.role === 'student') return 'student';
+
+    // Default to student for all users
+    return 'student';
+  };
+
   useEffect(() => {
     // 1. Supabase initial session check
     const getInitialSession = async () => {
@@ -40,8 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          const userRole = (session.user.user_metadata?.role as UserRole) || 
-            (session.user.app_metadata?.provider === 'github' ? 'student' : 'faculty');
+          const userRole = resolveUserRole(session.user);
           setRole(userRole);
           setIsDemoUser(false);
         } else {
@@ -85,8 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsDemoUser(false);
         localStorage.removeItem('codepilot_demo_active');
         localStorage.removeItem('codepilot_demo_user');
-        const userRole = (session.user.user_metadata?.role as UserRole) || 
-          (session.user.app_metadata?.provider === 'github' ? 'student' : 'faculty');
+        const userRole = resolveUserRole(session.user);
         setRole(userRole);
       } else {
         const storedDemo = typeof window !== 'undefined' ? localStorage.getItem('codepilot_demo_active') : null;
@@ -101,6 +128,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
+
+  const switchRole = async (newRole: UserRole) => {
+    setRole(newRole);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('codepilot_user_role', newRole);
+    }
+    if (user) {
+      try {
+        await supabase.auth.updateUser({
+          data: { role: newRole }
+        });
+      } catch (e) {
+        console.warn('Could not persist role in Supabase metadata:', e);
+      }
+    }
+  };
 
   const signInWithGithub = async () => {
     try {
@@ -124,7 +167,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: redirectUrl },
+        options: { 
+          redirectTo: redirectUrl,
+          queryParams: { role: 'student' }
+        },
       });
       return { error };
     } catch (err: unknown) {
@@ -132,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signInWithEmail = async (email: string, password: string, desiredRole: UserRole = 'faculty') => {
+  const signInWithEmail = async (email: string, password: string, desiredRole: UserRole = 'student') => {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (!error) {
@@ -151,7 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string, 
     password: string, 
     fullName?: string, 
-    userRole: UserRole = 'faculty'
+    userRole: UserRole = 'student'
   ) => {
     try {
       const { error } = await supabase.auth.signUp({
@@ -159,7 +205,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password,
         options: {
           data: {
-            full_name: fullName || (userRole === 'faculty' ? 'Faculty Member' : 'Student Developer'),
+            full_name: fullName || 'Student Developer',
             role: userRole,
           },
           emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined,
@@ -203,13 +249,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setRole('student');
     setUser({
       id: 'demo-student-user',
-      email: 'student@example.edu',
+      email: 'student@university.edu',
       user_metadata: {
-        full_name: 'Alex Morgan',
-        avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=128&auto=format&fit=crop&q=80',
+        full_name: 'Aman Mahadik',
+        avatar_url: null,
         role: 'student',
-        user_name: 'alexmorgan',
-        institution: 'School of Engineering & Technology',
+        user_name: 'amanmahadik',
+        institution: 'Department of Computer Science & Engineering',
       },
       app_metadata: { provider: 'github' },
       aud: 'authenticated',
@@ -224,13 +270,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setRole('faculty');
     setUser({
       id: 'demo-faculty-user',
-      email: 'faculty@example.edu',
+      email: 'faculty@university.edu',
       user_metadata: {
-        full_name: 'Dr. Sarah Jenkins',
+        full_name: 'Faculty Evaluator',
         avatar_url: null,
         role: 'faculty',
-        user_name: 'dr-jenkins',
-        institution: 'School of Engineering & Technology',
+        user_name: 'faculty-evaluator',
+        institution: 'Department of Computer Science & Engineering',
       },
       app_metadata: { provider: 'email' },
       aud: 'authenticated',
@@ -255,6 +301,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         enableStudentDemo,
         enableFacultyDemo,
         enableDemoUser: enableStudentDemo,
+        switchRole,
       }}
     >
       {children}

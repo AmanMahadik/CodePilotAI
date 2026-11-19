@@ -147,7 +147,7 @@ export default function RegisterPage() {
                   <input
                     type="text"
                     required
-                    placeholder="Alex Morgan"
+                    placeholder="Your Full Name"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:outline-none focus:border-brand-500"

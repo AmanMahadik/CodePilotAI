@@ -113,7 +113,7 @@ const BUG_PATTERNS = [
   },
 ];
 
-// Run simulated or actual pipeline review
+// Run multi-agent pipeline review
 export async function runMultiAgentReview(
   repoName: string,
   branch: string,

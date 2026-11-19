@@ -1,38 +1,34 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { 
   Plus, 
   ArrowRight, 
-  Clock, 
-  CheckCircle2, 
-  AlertTriangle, 
-  ShieldAlert, 
-  TrendingUp, 
-  FileCode, 
-  Terminal, 
-  FileText, 
   GitBranch,
   Search,
   RefreshCw,
-  Github,
-  Loader2
+  Loader2,
+  Terminal,
+  FileText,
+  ShieldCheck,
+  Inbox
 } from 'lucide-react';
 import { useAuth } from '@/lib/supabase/auth-context';
-import { Repository } from '@/lib/types';
-import { fetchStudentGithubRepositories, getCachedRepositories } from '@/lib/github';
+import { Repository, Review } from '@/lib/types';
+import { fetchStudentGithubRepositories } from '@/lib/github';
+import { getStoredReviews } from '@/lib/store';
 
 export default function OverviewDashboardPage() {
   const { user, session } = useAuth();
   const firstName = user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Developer';
-  const repoOwner = user?.user_metadata?.user_name || user?.email?.split('@')[0] || 'developer';
 
   const [repos, setRepos] = useState<Repository[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loadingRepos, setLoadingRepos] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
-  const loadRepos = async (forceSync = false) => {
+  const loadRepos = useCallback(async (forceSync = false) => {
     if (forceSync) setSyncing(true);
     else setLoadingRepos(true);
 
@@ -46,20 +42,26 @@ export default function OverviewDashboardPage() {
       setRepos(loadedRepos);
     } catch (e) {
       console.warn('Error loading repos on dashboard:', e);
-      setRepos(getCachedRepositories());
+      setRepos([]);
     } finally {
       setLoadingRepos(false);
       setSyncing(false);
     }
-  };
+  }, [user, session]);
 
   useEffect(() => {
     loadRepos();
-  }, [user, session]);
+    const stored = getStoredReviews();
+    setReviews(Object.values(stored));
+  }, [loadRepos]);
 
-  const avgScore = repos.length > 0 
-    ? Math.round(repos.reduce((acc, r) => acc + (r.latestScore || 85), 0) / repos.length) 
-    : 86;
+  const totalReviews = reviews.length;
+  const totalFindings = reviews.reduce((acc, r) => acc + (r.findings?.length || 0), 0);
+  const criticalFindings = reviews.reduce((acc, r) => acc + (r.findings?.filter(f => f.severity === 'Critical' || f.severity === 'High').length || 0), 0);
+  
+  const avgScore = reviews.length > 0 
+    ? Math.round(reviews.reduce((acc, r) => acc + (r.scores?.overall || 0), 0) / reviews.length) 
+    : (repos.length > 0 ? Math.round(repos.reduce((acc, r) => acc + (r.latestScore || 85), 0) / repos.length) : null);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -70,11 +72,11 @@ export default function OverviewDashboardPage() {
             WORKSPACE / OVERVIEW
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
-            <span>Good evening, {firstName}</span>
+            <span>Welcome, {firstName}</span>
             <span>👋</span>
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            {user ? 'Your engineering workspace at a glance.' : 'Connect your repositories to begin automated code review.'}
+            {user ? 'Your connected repositories and real-time code health.' : 'Sign in to connect repositories and run autonomous code reviews.'}
           </p>
         </div>
 
@@ -107,28 +109,38 @@ export default function OverviewDashboardPage() {
             {repos.length.toString().padStart(2, '0')}
           </div>
           <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-            {user ? 'Connected GitHub projects' : 'Demo repositories active'}
+            {repos.length > 0 ? 'Connected source projects' : 'No repositories connected yet'}
           </span>
         </div>
 
         <div className="p-4 rounded-xl bg-[#0e1424] border border-[#1c2438]">
           <span className="text-[11px] font-mono text-slate-400">Reviews completed</span>
-          <div className="text-3xl font-bold text-white mt-1">28</div>
-          <span className="text-[10px] text-[#3fb950] font-mono block mt-0.5 font-semibold">↑ 6 this week</span>
+          <div className="text-3xl font-bold text-white mt-1">
+            {totalReviews.toString().padStart(2, '0')}
+          </div>
+          <span className="text-[10px] text-[#3fb950] font-mono block mt-0.5 font-semibold">
+            {totalReviews > 0 ? `${totalReviews} active analyses` : 'Start your first review'}
+          </span>
         </div>
 
         <div className="p-4 rounded-xl bg-[#0e1424] border border-[#1c2438]">
           <span className="text-[11px] font-mono text-slate-400">Open findings</span>
-          <div className="text-3xl font-bold text-[#f0883e] mt-1">42</div>
-          <span className="text-[10px] text-slate-400 font-mono block mt-0.5">7 critical / high</span>
+          <div className="text-3xl font-bold text-[#f0883e] mt-1">
+            {totalFindings}
+          </div>
+          <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+            {criticalFindings} critical / high
+          </span>
         </div>
 
         <div className="p-4 rounded-xl bg-[#0e1424] border border-[#1c2438]">
           <span className="text-[11px] font-mono text-slate-400">Average health score</span>
           <div className="text-3xl font-bold text-[#3fb950] mt-1">
-            {avgScore}<span className="text-base font-normal text-slate-500">/100</span>
+            {avgScore !== null ? avgScore : '--'}{avgScore !== null && <span className="text-base font-normal text-slate-500">/100</span>}
           </div>
-          <span className="text-[10px] text-[#3fb950] font-mono block mt-0.5 font-semibold">↑ 4.2% improvement</span>
+          <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+            {avgScore !== null ? 'Live code quality baseline' : 'Pending review completion'}
+          </span>
         </div>
       </div>
 
@@ -143,7 +155,7 @@ export default function OverviewDashboardPage() {
                 <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
                   Your repositories ({repos.length})
                 </h3>
-                <p className="text-[11px] text-slate-400">Live projects connected to CodePilot AI</p>
+                <p className="text-[11px] text-slate-400">Active repositories connected to CodePilot AI</p>
               </div>
               <Link
                 href="/repositories"
@@ -167,15 +179,19 @@ export default function OverviewDashboardPage() {
                 <tbody className="divide-y divide-[#172033]">
                   {loadingRepos ? (
                     <tr>
-                      <td colSpan={4} className="py-6 text-center text-xs text-slate-400">
+                      <td colSpan={4} className="py-8 text-center text-xs text-slate-400">
                         <Loader2 className="w-4 h-4 animate-spin inline-block mr-2 text-[#58a6ff]" />
                         <span>Loading repositories from GitHub...</span>
                       </td>
                     </tr>
                   ) : repos.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="py-6 text-center text-xs text-slate-400 font-mono">
-                        No repositories connected yet. Click &quot;Add repository&quot; to connect your code.
+                      <td colSpan={4} className="py-8 text-center text-xs text-slate-400 font-mono space-y-1">
+                        <Inbox className="w-6 h-6 text-slate-600 mx-auto mb-1" />
+                        <div>No repositories connected yet.</div>
+                        <div className="text-[11px] text-slate-500">
+                          Click &quot;Add repository&quot; to import your code or enter your GitHub handle.
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -202,7 +218,7 @@ export default function OverviewDashboardPage() {
                         </td>
                         <td className="py-3">
                           <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border text-[#3fb950] bg-[#238636]/15 border-[#238636]/30">
-                            {repo.latestScore || 88} / 100
+                            {repo.latestScore || 85} / 100
                           </span>
                         </td>
                         <td className="py-3 text-right">
@@ -220,15 +236,6 @@ export default function OverviewDashboardPage() {
                 </tbody>
               </table>
             </div>
-
-            {/* Slider bar */}
-            <div className="mt-4 pt-3 border-t border-[#1c2438] flex items-center justify-center gap-2">
-              <button className="text-slate-500 hover:text-slate-300 text-xs">◀</button>
-              <div className="w-48 h-1.5 rounded-full bg-[#1c2438] overflow-hidden">
-                <div className="w-16 h-full bg-slate-400 rounded-full"></div>
-              </div>
-              <button className="text-slate-500 hover:text-slate-300 text-xs">▶</button>
-            </div>
           </div>
 
           {/* Finding Trends Card */}
@@ -236,51 +243,44 @@ export default function OverviewDashboardPage() {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
-                  Finding trends
+                  Defect &amp; Finding Trends
                 </h3>
-                <p className="text-[11px] text-slate-400">Defects across the last 10 reviews</p>
+                <p className="text-[11px] text-slate-400">Review defect distribution across your projects</p>
               </div>
-              <span className="text-[10px] font-mono text-slate-400 px-2 py-0.5 rounded bg-[#161f33] border border-[#22304d]">
-                Last 10 reviews
-              </span>
             </div>
 
-            {/* Legend */}
-            <div className="flex items-center gap-4 text-[10px] font-mono text-slate-400 mb-4">
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#da3633]"></span> Critical</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#f0883e]"></span> High</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#e3b341]"></span> Medium</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#58a6ff]"></span> Low</span>
-            </div>
-
-            {/* Segmented Stacked Bars */}
-            <div className="grid grid-cols-10 gap-2 h-28 items-end bg-[#0a0f1d] p-3 rounded-lg border border-[#172033]">
-              {[
-                { c: 2, h: 3, m: 4, l: 2 },
-                { c: 2, h: 3, m: 3, l: 2 },
-                { c: 2, h: 2, m: 4, l: 3 },
-                { c: 1, h: 2, m: 3, l: 2 },
-                { c: 2, h: 2, m: 2, l: 3 },
-                { c: 1, h: 2, m: 3, l: 4 },
-                { c: 2, h: 2, m: 3, l: 4 },
-                { c: 1, h: 3, m: 2, l: 3 },
-                { c: 0, h: 2, m: 3, l: 4 },
-                { c: 0, h: 1, m: 2, l: 4 },
-              ].map((stack, idx) => (
-                <div key={idx} className="flex flex-col gap-0.5 w-full h-full justify-end">
-                  <div className="w-full bg-[#58a6ff] rounded-xs" style={{ height: `${stack.l * 5}px` }}></div>
-                  <div className="w-full bg-[#e3b341] rounded-xs" style={{ height: `${stack.m * 6}px` }}></div>
-                  <div className="w-full bg-[#f0883e] rounded-xs" style={{ height: `${stack.h * 6}px` }}></div>
-                  <div className="w-full bg-[#da3633] rounded-xs" style={{ height: `${stack.c * 8}px` }}></div>
+            {reviews.length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-500 font-mono bg-[#0a0f1d] rounded-lg border border-[#172033]">
+                No review findings yet. Run a code review on any repository to visualize defect trends.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-4 text-[10px] font-mono text-slate-400">
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#da3633]"></span> Critical</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#f0883e]"></span> High</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#e3b341]"></span> Medium</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#58a6ff]"></span> Low</span>
                 </div>
-              ))}
-            </div>
 
-            <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 mt-2 px-1">
-              <span>Review 01</span>
-              <span>Review 05</span>
-              <span>Review 10</span>
-            </div>
+                <div className="grid grid-cols-5 gap-2 h-24 items-end bg-[#0a0f1d] p-3 rounded-lg border border-[#172033]">
+                  {reviews.slice(0, 5).map((rev) => {
+                    const c = rev.findings.filter(f => f.severity === 'Critical').length;
+                    const h = rev.findings.filter(f => f.severity === 'High').length;
+                    const m = rev.findings.filter(f => f.severity === 'Medium').length;
+                    const l = rev.findings.filter(f => f.severity === 'Low').length;
+                    return (
+                      <div key={rev.id} className="flex flex-col gap-0.5 w-full h-full justify-end items-center">
+                        <div className="w-full bg-[#58a6ff] rounded-xs" style={{ height: `${Math.min(l * 8, 20)}px` }} />
+                        <div className="w-full bg-[#e3b341] rounded-xs" style={{ height: `${Math.min(m * 8, 20)}px` }} />
+                        <div className="w-full bg-[#f0883e] rounded-xs" style={{ height: `${Math.min(h * 10, 24)}px` }} />
+                        <div className="w-full bg-[#da3633] rounded-xs" style={{ height: `${Math.min(c * 12, 28)}px` }} />
+                        <span className="text-[9px] font-mono text-slate-400 truncate max-w-[60px] mt-1">{rev.repositoryName}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -289,9 +289,11 @@ export default function OverviewDashboardPage() {
           {/* Review SLA Card */}
           <div className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-4">
             <span className="text-[11px] font-mono text-slate-400 uppercase">Review SLA</span>
-            <div className="text-[11px] text-slate-500">Performance target</div>
-            <div className="text-3xl font-extrabold text-[#3fb950] mt-1.5 font-mono">42s</div>
-            <div className="text-[10px] text-slate-400 font-mono">P95 review time</div>
+            <div className="text-[11px] text-slate-500">Autonomous performance target</div>
+            <div className="text-3xl font-extrabold text-[#3fb950] mt-1.5 font-mono">
+              {reviews.length > 0 ? `${Math.round(reviews[0].durationSeconds || 42)}s` : 'Ready'}
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono">Sub-minute multi-agent execution</div>
 
             <div className="mt-3 pt-3 border-t border-[#1c2438] flex items-center justify-between text-[11px] font-mono">
               <span className="text-slate-400">Target: under 60s</span>
@@ -308,7 +310,7 @@ export default function OverviewDashboardPage() {
               {[
                 { name: 'Repository Agent', status: 'Online' },
                 { name: 'Quality Agent', status: 'Online' },
-                { name: 'Security Agent', status: 'Online' },
+                { name: 'Security Agent (OWASP)', status: 'Online' },
                 { name: 'Documentation Agent', status: 'Online' },
               ].map((agent, i) => (
                 <div key={i} className="flex items-center justify-between py-1 border-b border-[#162032] last:border-0">
@@ -328,35 +330,26 @@ export default function OverviewDashboardPage() {
               Recent activity
             </h4>
             <div className="space-y-3 text-xs">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-1.5 text-white font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#3fb950]"></span>
-                  <span>Review completed</span>
+              {reviews.length === 0 ? (
+                <div className="text-slate-500 font-mono text-[11px] py-2">
+                  No review activity recorded yet. Run a code review to track execution logs.
                 </div>
-                <div className="text-[11px] text-slate-400 pl-3 font-mono">
-                  Society_Sync • 12 minutes ago
-                </div>
-              </div>
-
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-1.5 text-white font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#f0883e]"></span>
-                  <span>3 findings need attention</span>
-                </div>
-                <div className="text-[11px] text-slate-400 pl-3 font-mono">
-                  Hyperlocal-Civic • Yesterday
-                </div>
-              </div>
-
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-1.5 text-white font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#58a6ff]"></span>
-                  <span>Documentation generated</span>
-                </div>
-                <div className="text-[11px] text-slate-400 pl-3 font-mono">
-                  Campus-Connect • 2 days ago
-                </div>
-              </div>
+              ) : (
+                reviews.slice(0, 3).map((rev) => (
+                  <div key={rev.id} className="space-y-0.5">
+                    <div className="flex items-center gap-1.5 text-white font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#3fb950]"></span>
+                      <span>Review completed • Score {rev.scores.overall}/100</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 pl-3 font-mono flex items-center justify-between">
+                      <span>{rev.repositoryName}</span>
+                      <Link href={`/review/${rev.id}`} className="text-[#58a6ff] hover:underline">
+                        View →
+                      </Link>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -379,7 +372,7 @@ export default function OverviewDashboardPage() {
           </Link>
 
           <Link
-            href="/review/rev-1"
+            href="/review/new"
             className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-[#161f33] hover:bg-[#1f2c49] border border-[#22304d] text-xs font-semibold text-slate-200 transition-colors"
           >
             <Search className="w-3.5 h-3.5" />
@@ -387,7 +380,7 @@ export default function OverviewDashboardPage() {
           </Link>
 
           <Link
-            href="/chat/repo-1"
+            href="/chat/default"
             className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-[#161f33] hover:bg-[#1f2c49] border border-[#22304d] text-xs font-semibold text-slate-200 transition-colors"
           >
             <Terminal className="w-3.5 h-3.5" />
@@ -395,7 +388,7 @@ export default function OverviewDashboardPage() {
           </Link>
 
           <Link
-            href="/report/rev-1"
+            href="/report/default"
             className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-[#161f33] hover:bg-[#1f2c49] border border-[#22304d] text-xs font-semibold text-slate-200 transition-colors"
           >
             <FileText className="w-3.5 h-3.5" />
