@@ -18,9 +18,6 @@ interface AuthContextType {
   signUpWithEmail: (email: string, password: string, fullName?: string, role?: UserRole) => Promise<{ error: Error | null }>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
-  enableStudentDemo: () => void;
-  enableFacultyDemo: () => void;
-  enableDemoUser: () => void;
   switchRole: (role: UserRole) => Promise<void>;
 }
 
@@ -39,23 +36,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return stored || 'student';
     }
 
-    // Aman Mahadik is explicitly a Student Developer
-    const email = (u.email || '').toLowerCase();
-    const fullName = ((u.user_metadata?.full_name as string) || '').toLowerCase();
-    if (email.includes('amanmahadik') || fullName.includes('aman mahadik')) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('codepilot_user_role', 'student');
-      }
-      return 'student';
-    }
+    // Check metadata role if explicitly set
+    if (u.user_metadata?.role?.toLowerCase() === 'faculty') return 'faculty';
+    if (u.user_metadata?.role?.toLowerCase() === 'student') return 'student';
 
     // Check localStorage saved role
     const storedRole = typeof window !== 'undefined' ? (localStorage.getItem('codepilot_user_role') as UserRole) : null;
     if (storedRole) return storedRole;
-
-    // Check metadata role if explicitly set
-    if (u.user_metadata?.role === 'faculty') return 'faculty';
-    if (u.user_metadata?.role === 'student') return 'student';
 
     // Default to student for all users
     return 'student';
@@ -73,28 +60,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setRole(userRole);
           setIsDemoUser(false);
         } else {
-          // Check if demo user was explicitly enabled
-          const storedDemo = typeof window !== 'undefined' ? localStorage.getItem('codepilot_demo_active') : null;
-          const storedRole = typeof window !== 'undefined' ? (localStorage.getItem('codepilot_user_role') as UserRole) : null;
-          if (storedDemo === 'true') {
-            const isFaculty = storedRole === 'faculty';
-            setIsDemoUser(true);
-            setRole(isFaculty ? 'faculty' : 'student');
-            setUser({
-              id: isFaculty ? 'demo-faculty-user' : 'demo-student-user',
-              email: isFaculty ? 'faculty@university.edu' : 'student@university.edu',
-              user_metadata: {
-                full_name: isFaculty ? 'Faculty Reviewer' : 'Student Developer',
-                role: isFaculty ? 'faculty' : 'student',
-                institution: 'University Engineering Department',
-              },
-              app_metadata: { provider: isFaculty ? 'email' : 'github' },
-              aud: 'authenticated',
-              created_at: new Date().toISOString(),
-            } as unknown as User);
-          } else {
-            setUser(null);
+          // Check server-side session API (/api/auth/me) for password or custom OAuth logins
+          try {
+            const meRes = await fetch('/api/auth/me');
+            if (meRes.ok) {
+              const meData = await meRes.json();
+              if (meData.authenticated && meData.user) {
+                const mappedUser = {
+                  id: meData.user.id,
+                  email: meData.user.email,
+                  user_metadata: {
+                    full_name: meData.user.name,
+                    role: meData.user.role?.toLowerCase() || 'student',
+                    institution: meData.user.institution,
+                  },
+                  app_metadata: { provider: 'email' },
+                  aud: 'authenticated',
+                  created_at: new Date().toISOString(),
+                } as unknown as User;
+
+                setUser(mappedUser);
+                setRole(meData.user.role?.toLowerCase() === 'faculty' ? 'faculty' : 'student');
+                setIsDemoUser(false);
+                return;
+              }
+            }
+          } catch {
+            // Server session check fallback
           }
+          setUser(null);
         }
       } catch (err) {
         console.error('Error checking auth session:', err);
@@ -232,56 +226,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('codepilot_demo_active');
     localStorage.removeItem('codepilot_demo_user');
     localStorage.removeItem('codepilot_user_role');
+    localStorage.removeItem('codepilot_gh_token');
     setIsDemoUser(false);
     setUser(null);
     setSession(null);
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {}
     try {
       await supabase.auth.signOut();
     } catch (e) {
       console.warn('SignOut warning:', e);
     }
-  };
-
-  const enableStudentDemo = () => {
-    localStorage.setItem('codepilot_demo_active', 'true');
-    localStorage.setItem('codepilot_user_role', 'student');
-    setIsDemoUser(true);
-    setRole('student');
-    setUser({
-      id: 'demo-student-user',
-      email: 'student@university.edu',
-      user_metadata: {
-        full_name: 'Aman Mahadik',
-        avatar_url: null,
-        role: 'student',
-        user_name: 'amanmahadik',
-        institution: 'Department of Computer Science & Engineering',
-      },
-      app_metadata: { provider: 'github' },
-      aud: 'authenticated',
-      created_at: new Date().toISOString(),
-    } as unknown as User);
-  };
-
-  const enableFacultyDemo = () => {
-    localStorage.setItem('codepilot_demo_active', 'true');
-    localStorage.setItem('codepilot_user_role', 'faculty');
-    setIsDemoUser(true);
-    setRole('faculty');
-    setUser({
-      id: 'demo-faculty-user',
-      email: 'faculty@university.edu',
-      user_metadata: {
-        full_name: 'Faculty Evaluator',
-        avatar_url: null,
-        role: 'faculty',
-        user_name: 'faculty-evaluator',
-        institution: 'Department of Computer Science & Engineering',
-      },
-      app_metadata: { provider: 'email' },
-      aud: 'authenticated',
-      created_at: new Date().toISOString(),
-    } as unknown as User);
   };
 
   return (
@@ -298,9 +254,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signUpWithEmail,
         resetPassword,
         signOut,
-        enableStudentDemo,
-        enableFacultyDemo,
-        enableDemoUser: enableStudentDemo,
         switchRole,
       }}
     >

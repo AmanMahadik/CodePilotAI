@@ -28,9 +28,13 @@ function AuthCallbackContent() {
         if (session?.provider_token) {
           localStorage.setItem('codepilot_gh_token', session.provider_token);
         }
-        await fetchStudentGithubRepositories(session.user, session);
+        localStorage.setItem('codepilot_user_role', 'student');
+        // Non-blocking repo prefetch
+        fetchStudentGithubRepositories(session.user, session).catch((e) => {
+          console.warn('Repository sync error during callback:', e);
+        });
       } catch (e) {
-        console.warn('Repository sync error during callback:', e);
+        console.warn('Callback sync error:', e);
       }
 
       if (isMounted) {
@@ -108,9 +112,9 @@ function AuthCallbackContent() {
             if (fallbackCheck?.session && isMounted) {
               await completeSessionAndRedirect(fallbackCheck.session, next);
             } else if (isMounted) {
-              router.push('/dashboard');
+              setErrorMessage('Authentication session could not be established. Please try signing in again.');
             }
-          }, 1200);
+          }, 1500);
         }
       } catch (err: unknown) {
         console.error('Callback error:', err);

@@ -2,28 +2,39 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { 
-  Download, 
-  Check, 
-  Copy, 
-  School, 
-  ShieldCheck, 
-  AlertCircle, 
-  RotateCw, 
+import { useParams, useRouter } from 'next/navigation';
+import {
+  Download,
+  Check,
+  Copy,
+  School,
+  AlertCircle,
+  RotateCw,
   FileText,
   HelpCircle,
   ChevronLeft,
-  ChevronRight,
-  ExternalLink
+  Printer,
+  Upload,
+  Loader2,
+  ShieldCheck,
+  Trash2,
+  ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '@/lib/supabase/auth-context';
-import { getReviewById, getLatestReview, getStoredReviews } from '@/lib/store';
+import { getReviewById, getLatestReview, getStoredReviews, getStoredRepositories } from '@/lib/store';
 import { Review } from '@/lib/types';
+import ReportDocument from '@/components/ReportDocument';
+import {
+  buildPdfFilename,
+  computeReportSha256,
+  ReportConfig,
+  validateReportConfig,
+} from '@/lib/report-utils';
 
 export default function InstitutionalReportPage() {
   const params = useParams();
-  const reviewId = (params?.id as string) || 'default';
+  const router = useRouter();
+  const reviewId = (params?.id as string) || 'latest';
   const { user, role } = useAuth();
   const isFaculty = role === 'faculty';
 
@@ -31,11 +42,26 @@ export default function InstitutionalReportPage() {
   const [loading, setLoading] = useState(true);
   const [allReviews, setAllReviews] = useState<Review[]>([]);
 
+  // Report configuration state (Part D)
   const [includeHeader, setIncludeHeader] = useState(true);
   const [institution, setInstitution] = useState('');
+  const [department, setDepartment] = useState('');
   const [candidateName, setCandidateName] = useState('');
+  const [rollNumber, setRollNumber] = useState('');
+  const [batch, setBatch] = useState('');
   const [referenceId, setReferenceId] = useState('');
+  const [commitHash, setCommitHash] = useState('');
+  const [repositoryUrl, setRepositoryUrl] = useState('');
+  const [logoDataUrl, setLogoDataUrl] = useState<string>('');
+
+  // Export, share, and verification states
+  const [sha256Hash, setSha256Hash] = useState('');
+  const [verifyUrl, setVerifyUrl] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [revoked, setRevoked] = useState(false);
+  const [validationAttempted, setValidationAttempted] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -46,27 +72,214 @@ export default function InstitutionalReportPage() {
       const found = getReviewById(reviewId) || getLatestReview();
       if (found) {
         setReview(found);
-        setReferenceId(found.id.toUpperCase());
-        setInstitution(
-          found.institutionBranding?.institutionName ||
-          user?.user_metadata?.institution || 
-          'Department of Computer Science & Engineering'
+        const repos = getStoredRepositories();
+        const matchingRepo = repos.find(
+          (r) => r.id === found.repositoryId || r.name === found.repositoryName
         );
-        setCandidateName(
-          found.institutionBranding?.studentName ||
-          user?.user_metadata?.full_name || 
-          'Aman Mahadik (DEV-001)'
-        );
+
+        let initialConfig: ReportConfig = {
+          includeInstitutionalHeader: found.institutionBranding?.enabled ?? true,
+          institution:
+            found.institutionBranding?.institutionName ||
+            (user?.user_metadata?.institution as string) ||
+            '',
+          department:
+            found.institutionBranding?.department ||
+            (user?.user_metadata?.department as string) ||
+            '',
+          candidateName:
+            (user?.user_metadata?.full_name as string) ||
+            found.institutionBranding?.studentName ||
+            '',
+          rollNumber:
+            found.institutionBranding?.rollNo ||
+            (user?.user_metadata?.roll_no as string) ||
+            '',
+          batch:
+            found.institutionBranding?.batch ||
+            (user?.user_metadata?.batch as string) ||
+            '',
+          referenceId: found.id.toUpperCase(),
+          repositoryUrl: matchingRepo?.url || '',
+        };
+
+        // Load saved configuration overrides for this report if present
+        try {
+          const savedCfg = localStorage.getItem(`codepilot_report_config_${found.id}`);
+          if (savedCfg) {
+            initialConfig = { ...initialConfig, ...JSON.parse(savedCfg) };
+          }
+        } catch {}
+
+        setIncludeHeader(initialConfig.includeInstitutionalHeader);
+        setInstitution(initialConfig.institution);
+        setDepartment(initialConfig.department);
+        setCandidateName(initialConfig.candidateName);
+        setRollNumber(initialConfig.rollNumber);
+        setBatch(initialConfig.batch);
+        setReferenceId(initialConfig.referenceId);
+        setCommitHash(initialConfig.commitHash || '');
+        setRepositoryUrl(initialConfig.repositoryUrl || '');
+        setLogoDataUrl(initialConfig.logoDataUrl || '');
       }
       setLoading(false);
     }
   }, [reviewId, user]);
 
-  const handleCopyLink = () => {
-    if (typeof window !== 'undefined') {
-      navigator.clipboard.writeText(window.location.href);
+  const currentConfig: ReportConfig = {
+    includeInstitutionalHeader: includeHeader,
+    institution,
+    department,
+    candidateName,
+    rollNumber,
+    batch,
+    referenceId,
+    logoDataUrl: logoDataUrl || undefined,
+    commitHash: commitHash || undefined,
+    repositoryUrl: repositoryUrl || undefined,
+  };
+
+  // Persist config changes and recalculate SHA-256 hash dynamically
+  useEffect(() => {
+    if (!review) return;
+    let active = true;
+
+    try {
+      localStorage.setItem(`codepilot_report_config_${review.id}`, JSON.stringify(currentConfig));
+    } catch {}
+
+    computeReportSha256(review, currentConfig).then((digest) => {
+      if (active) {
+        setSha256Hash(digest);
+        if (typeof window !== 'undefined' && !verifyUrl) {
+          setVerifyUrl(`${window.location.origin}/report/${review.id}/verify`);
+        }
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    review,
+    includeHeader,
+    institution,
+    department,
+    candidateName,
+    rollNumber,
+    batch,
+    referenceId,
+    commitHash,
+    repositoryUrl,
+    logoDataUrl,
+  ]);
+
+  const validationIssues = validateReportConfig(currentConfig);
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 500 * 1024) {
+      alert('Logo image must be under 500 KB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setLogoDataUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCopyShareLink = async () => {
+    if (!review) return;
+    setValidationAttempted(true);
+    if (validationIssues.length > 0) return;
+
+    try {
+      const res = await fetch(`/api/reports/${encodeURIComponent(review.id)}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          review,
+          config: currentConfig,
+          expiresInHours: 168, // 7-day share link
+        }),
+      });
+      const data = await res.json();
+      const targetUrl = data.verifyUrl || `${window.location.origin}/report/${review.id}/verify`;
+      setVerifyUrl(targetUrl);
+      setRevoked(false);
+      await navigator.clipboard.writeText(targetUrl);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      const fallback = `${window.location.origin}/report/${review.id}/verify`;
+      await navigator.clipboard.writeText(fallback);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  };
+
+  const handleRevokeShareLink = async () => {
+    if (!review) return;
+    try {
+      await fetch(`/api/reports/${encodeURIComponent(review.id)}/verify`, { method: 'DELETE' });
+      setRevoked(true);
+    } catch {}
+  };
+
+  const handleExportPdf = async () => {
+    if (!review) return;
+    setValidationAttempted(true);
+    if (validationIssues.length > 0) {
+      return;
+    }
+
+    setIsExporting(true);
+    setExportStatus('Rendering A4 Institutional PDF via headless Chromium...');
+
+    try {
+      const res = await fetch(`/api/reports/${encodeURIComponent(review.id)}/pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          review,
+          config: currentConfig,
+        }),
+      });
+
+      if (res.ok && res.headers.get('content-type')?.includes('application/pdf')) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = buildPdfFilename(review.repositoryName, review.createdAt);
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        setExportStatus(null);
+        setIsExporting(false);
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (data.code === 'CHROMIUM_UNAVAILABLE' && data.fallbackPrintUrl) {
+        // On serverless runtimes without Chromium binary, open the dedicated clean print view
+        setExportStatus('Opening clean print-ready A4 template...');
+        window.open(data.fallbackPrintUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        setExportStatus(data.error || 'Could not generate PDF on server. Opening clean print template.');
+        window.open(`/report/${encodeURIComponent(review.id)}/print?autoprint=1`, '_blank', 'noopener,noreferrer');
+      }
+    } catch {
+      window.open(`/report/${encodeURIComponent(review.id)}/print?autoprint=1`, '_blank', 'noopener,noreferrer');
+    } finally {
+      setIsExporting(false);
+      setTimeout(() => setExportStatus(null), 4000);
     }
   };
 
@@ -74,7 +287,7 @@ export default function InstitutionalReportPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-slate-400">
         <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-sm font-mono">Loading student audit report...</p>
+        <p className="text-sm font-mono">Loading institutional audit report...</p>
       </div>
     );
   }
@@ -85,9 +298,9 @@ export default function InstitutionalReportPage() {
         <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto mb-4">
           <FileText className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-bold text-white mb-2">No Report Found</h2>
+        <h2 className="text-xl font-bold text-white mb-2">No Audit Report Available</h2>
         <p className="text-sm text-slate-400 max-w-md mx-auto mb-6">
-          No audit assessment exists for ID &quot;{reviewId}&quot;. Run an analysis on a repository to generate an official institutional report.
+          No audit assessment exists yet for ID &quot;{reviewId}&quot;. Run an analysis on a repository to generate an official institutional report.
         </p>
         <Link
           href="/review/new"
@@ -100,43 +313,38 @@ export default function InstitutionalReportPage() {
     );
   }
 
-  const criticalCount = review.findings?.filter((f) => f.severity === 'Critical').length || 0;
-  const highCount = review.findings?.filter((f) => f.severity === 'High').length || 0;
-  const mediumCount = review.findings?.filter((f) => f.severity === 'Medium').length || 0;
-  const lowCount = review.findings?.filter((f) => f.severity === 'Low').length || 0;
-
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12">
+    <div className="space-y-6 w-full max-w-6xl mx-auto pb-12 min-w-0">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 gap-4">
-        <div>
+      <div className="no-print flex flex-col lg:flex-row lg:items-center justify-between pb-2 gap-4">
+        <div className="min-w-0">
           <div className="text-[11px] font-mono text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1.5">
             {isFaculty ? (
               <>
                 <School className="w-3.5 h-3.5 text-[#3fb950]" />
-                <span className="text-[#3fb950] font-semibold">FACULTY PORTAL • STUDENT AUDIT REPORTS</span>
+                <span className="text-[#3fb950] font-semibold">FACULTY PORTAL • AUDIT REPORTS</span>
               </>
             ) : (
               <>
                 <FileText className="w-3.5 h-3.5 text-[#58a6ff]" />
-                <span className="text-slate-400">{review.repositoryName.toUpperCase()} / AUDIT REPORT</span>
+                <span className="text-slate-400 truncate">{review.repositoryName.toUpperCase()} / AUDIT REPORT</span>
               </>
             )}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex flex-wrap items-center gap-3">
             <span>Institutional Audit Report</span>
-            <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-[#238636]/15 text-[#3fb950] border border-[#238636]/30">
-              Verified
+            <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#238636]/15 text-[#3fb950] border border-[#238636]/30">
+              SHA-256 Sealed
             </span>
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Auditable engineering assessment and academic accreditation export for {review.repositoryName}.
+            Print-ready A4 assessment &amp; cryptographic verification for {review.repositoryName}.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <Link
-            href={isFaculty ? "/faculty" : "/dashboard"}
+            href={isFaculty ? '/faculty' : '/dashboard'}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-[#0e1424] hover:bg-[#151d33] border border-[#1c2438] text-xs font-medium text-slate-300 transition-colors"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
@@ -151,256 +359,300 @@ export default function InstitutionalReportPage() {
             <span>Interview Viva</span>
           </Link>
 
-          <button
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-semibold shadow-sm transition-colors shrink-0"
+          <Link
+            href={`/report/${review.id}/print`}
+            target="_blank"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-[#161f33] hover:bg-[#1e2a45] border border-[#22304d] text-xs font-medium text-slate-200 transition-colors"
           >
-            <Download className="w-4 h-4" />
-            <span>Export PDF</span>
+            <Printer className="w-3.5 h-3.5" />
+            <span>Print View</span>
+          </Link>
+
+          <button
+            onClick={handleExportPdf}
+            disabled={isExporting}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 text-white text-xs font-semibold shadow-sm transition-colors"
+          >
+            {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            <span>{isExporting ? 'Generating PDF...' : 'Download PDF'}</span>
           </button>
         </div>
       </div>
 
-      {/* Cohort Submission Navigation Bar if multiple reviews exist */}
+      {/* Responsive Report Switcher (Prevents horizontal page overflow) */}
       {allReviews.length > 1 && (
-        <div className="p-3 rounded-xl bg-[#0e1424] border border-[#1c2438] flex items-center justify-between text-xs font-mono">
-          <div className="text-slate-400 flex items-center gap-2">
-            <span>Viewing Report:</span>
-            <span className="text-white font-bold">{review.repositoryName}</span>
+        <div className="no-print p-3.5 rounded-xl bg-[#0e1424] border border-[#1c2438] flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
+          <div className="text-xs text-slate-400 flex items-center gap-2 min-w-0">
+            <span className="shrink-0">Viewing Report:</span>
+            <span className="text-white font-semibold truncate">{review.repositoryName}</span>
+            <span className="font-mono text-[11px] text-slate-500 shrink-0">
+              ({review.scores.overall}/100)
+            </span>
           </div>
-          <div className="flex items-center gap-2">
-            {allReviews.map((r) => (
-              <Link
-                key={r.id}
-                href={`/report/${r.id}`}
-                className={`px-2.5 py-1 rounded text-[11px] transition-colors ${
-                  r.id === review.id
-                    ? 'bg-[#1f6feb] text-white font-bold'
-                    : 'bg-[#111728] text-slate-400 hover:text-white'
-                }`}
-              >
-                {r.repositoryName}
-              </Link>
-            ))}
+
+          <div className="flex items-center gap-2 shrink-0">
+            <label htmlFor="report-selector" className="text-[11px] text-slate-400 shrink-0">
+              Switch report:
+            </label>
+            <select
+              id="report-selector"
+              value={review.id}
+              onChange={(e) => router.push(`/report/${e.target.value}`)}
+              className="max-w-[260px] px-3 py-1.5 rounded-lg bg-[#070a12] border border-[#1c2438] text-xs text-white focus:outline-none focus:border-blue-500"
+            >
+              {allReviews.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.repositoryName} ({r.scores.overall}/100 • {new Date(r.createdAt).toLocaleDateString()})
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       )}
 
-      {/* Report Configuration Card */}
-      <div className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold text-white font-mono uppercase tracking-wider">
-            Report configuration
-          </h3>
-          <span className="px-2.5 py-0.5 rounded-full bg-[#238636]/15 border border-[#238636]/40 text-[#3fb950] font-mono text-[10px] font-bold">
-            Ready to preview &amp; print
-          </span>
+      {/* Export status banner */}
+      {exportStatus && (
+        <div className="no-print p-3 rounded-xl bg-blue-950/40 border border-blue-800/50 text-xs text-blue-200 flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin text-blue-400 shrink-0" />
+          <span>{exportStatus}</span>
         </div>
-        <p className="text-[11px] text-slate-400 -mt-2">
-          Customize your institutional report identity before saving or printing.
-        </p>
+      )}
 
-        {/* Checkbox */}
-        <label
-          onClick={() => setIncludeHeader(!includeHeader)}
-          className="flex items-center gap-2.5 text-xs text-slate-300 cursor-pointer select-none"
-        >
-          <div
-            className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-              includeHeader
-                ? 'bg-[#1f6feb] border-[#1f6feb] text-white'
-                : 'border-slate-600 bg-transparent'
-            }`}
-          >
-            {includeHeader && <Check className="w-3 h-3 stroke-[3]" />}
-          </div>
-          <span>Include institutional header</span>
-        </label>
-
-        {/* Identity Customization */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs font-mono">
+      {/* Report Configuration Form (Part D) */}
+      <div className="no-print rounded-xl bg-[#0e1424] border border-[#1c2438] p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <label className="block text-[10px] text-slate-500 uppercase mb-1">Institution</label>
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+              Report Configuration &amp; Validation
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Complete all required fields below. Placeholder values are blocked from PDF export.
+            </p>
+          </div>
+          {validationIssues.length === 0 ? (
+            <span className="px-2.5 py-1 rounded-full bg-[#238636]/15 border border-[#238636]/40 text-[#3fb950] font-mono text-[10px] font-bold">
+              Ready to Export PDF
+            </span>
+          ) : (
+            <span className="px-2.5 py-1 rounded-full bg-amber-950/50 border border-amber-700/50 text-amber-300 font-mono text-[10px] font-bold">
+              {validationIssues.length} Field(s) Required
+            </span>
+          )}
+        </div>
+
+        {/* Validation Checklist Banner when attempting export with missing fields */}
+        {validationAttempted && validationIssues.length > 0 && (
+          <div className="p-3.5 rounded-lg bg-red-950/40 border border-red-800/50 text-xs text-red-200 space-y-1.5">
+            <div className="font-semibold flex items-center gap-1.5 text-red-300">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>Export blocked — fill in the following required fields:</span>
+            </div>
+            <ul className="list-disc pl-5 text-[11px] space-y-0.5 text-red-200">
+              {validationIssues.map((issue) => (
+                <li key={issue.field}>
+                  <strong>{issue.label}:</strong> {issue.message}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Institutional Header Toggle + Logo Upload */}
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
+          <label className="flex items-center gap-2.5 text-xs text-slate-200 cursor-pointer select-none">
             <input
-              type="text"
-              value={institution}
-              onChange={(e) => setInstitution(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded bg-[#0a0f1d] border border-[#172138] text-white text-xs font-mono"
+              type="checkbox"
+              checked={includeHeader}
+              onChange={(e) => setIncludeHeader(e.target.checked)}
+              className="w-4 h-4 rounded border-slate-600 bg-[#070a12] text-blue-600"
             />
-          </div>
+            <span>Include institutional header &amp; logo on Cover Page</span>
+          </label>
+
+          {includeHeader && (
+            <div className="flex items-center gap-2">
+              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#161f33] hover:bg-[#1e2a45] border border-[#22304d] text-[11px] text-slate-200 cursor-pointer transition-colors">
+                <Upload className="w-3.5 h-3.5" />
+                <span>{logoDataUrl ? 'Change Institution Logo' : 'Upload Institution Logo'}</span>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/svg+xml"
+                  onChange={handleLogoUpload}
+                  className="hidden"
+                />
+              </label>
+              {logoDataUrl && (
+                <button
+                  type="button"
+                  onClick={() => setLogoDataUrl('')}
+                  className="text-[11px] text-red-400 hover:underline"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Form Fields Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-1 text-xs">
+          {includeHeader && (
+            <>
+              <div>
+                <label className="block text-[11px] text-slate-300 mb-1">Institution Name *</label>
+                <input
+                  type="text"
+                  value={institution}
+                  onChange={(e) => setInstitution(e.target.value)}
+                  placeholder="e.g. MIT Academy of Engineering"
+                  className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-white text-xs focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] text-slate-300 mb-1">Department *</label>
+                <input
+                  type="text"
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                  placeholder="e.g. Computer Science & Engineering"
+                  className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-white text-xs focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            </>
+          )}
+
           <div>
-            <label className="block text-[10px] text-slate-500 uppercase mb-1">Candidate / Author</label>
+            <label className="block text-[11px] text-slate-300 mb-1">Author / Candidate Name *</label>
             <input
               type="text"
               value={candidateName}
               onChange={(e) => setCandidateName(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded bg-[#0a0f1d] border border-[#172138] text-white text-xs font-mono"
+              placeholder="Enter real full name"
+              className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-white text-xs focus:outline-none focus:border-blue-500"
             />
           </div>
+
           <div>
-            <label className="block text-[10px] text-slate-500 uppercase mb-1">Student / Reference ID</label>
+            <label className="block text-[11px] text-slate-300 mb-1">Roll / PRN Number *</label>
+            <input
+              type="text"
+              value={rollNumber}
+              onChange={(e) => setRollNumber(e.target.value)}
+              placeholder="e.g. 202502108006"
+              className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-white text-xs font-mono focus:outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-slate-300 mb-1">Batch / Cohort</label>
+            <input
+              type="text"
+              value={batch}
+              onChange={(e) => setBatch(e.target.value)}
+              placeholder="e.g. B.Tech TY-A"
+              className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-white text-xs focus:outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-slate-300 mb-1">Report Reference ID *</label>
             <input
               type="text"
               value={referenceId}
               onChange={(e) => setReferenceId(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded bg-[#0a0f1d] border border-[#172138] text-white text-xs font-mono"
+              placeholder="e.g. AUDIT-2026-042"
+              className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-white text-xs font-mono focus:outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-slate-300 mb-1">Commit Hash (optional)</label>
+            <input
+              type="text"
+              value={commitHash}
+              onChange={(e) => setCommitHash(e.target.value)}
+              placeholder="e.g. a1b2c3d4"
+              className="w-full px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-white text-xs font-mono focus:outline-none focus:border-blue-500"
             />
           </div>
         </div>
       </div>
 
-      {/* Main Report Document Sheet Preview */}
-      <div className="rounded-xl bg-white text-slate-900 p-8 sm:p-12 shadow-2xl space-y-6 print:p-0 font-sans">
-        {includeHeader && (
-          <div className="text-center pb-6 border-b border-slate-300 space-y-1">
-            <h2 className="text-base font-extrabold uppercase tracking-widest text-slate-900">
-              {institution || 'Department of Computer Science & Engineering'}
-            </h2>
-            <div className="text-[11px] font-mono text-slate-600 font-semibold uppercase tracking-wider">
-              Author: {candidateName} • Roll / ID: {referenceId}
-            </div>
-            <h3 className="text-lg font-black text-slate-900 pt-2 tracking-tight">
-              SOFTWARE ENGINEERING QUALITY &amp; SECURITY ASSESSMENT
+      {/* Live Preview of Exact A4 Print Template */}
+      <div className="space-y-2">
+        <div className="no-print flex items-center justify-between text-xs text-slate-400 px-1">
+          <span className="font-semibold text-slate-300">Live Print-Ready Document Preview (A4 Portrait)</span>
+          <span className="font-mono text-[11px]">SHA-256: {sha256Hash.slice(0, 16)}…</span>
+        </div>
+
+        <ReportDocument
+          review={review}
+          config={currentConfig}
+          sha256Hash={sha256Hash}
+          verifyUrl={verifyUrl || `https://codepilot.ai/report/${review.id}/verify`}
+        />
+      </div>
+
+      {/* Shareable & Cryptographically Verified Link Card */}
+      <div className="no-print rounded-xl bg-[#0e1424] border border-[#1c2438] p-5 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+              Read-Only Shareable &amp; Verified Link
             </h3>
-            <div className="text-[10px] font-mono text-slate-500 tracking-wider">
-              CODEPILOT AI • TECHNICAL CODE AUDIT REPORT (CPA-PRD-001)
-            </div>
           </div>
-        )}
-
-        {/* Meta Bar */}
-        <div className="flex items-center justify-between text-xs font-mono text-slate-600 border-b border-slate-200 pb-3">
-          <span>PROJECT: {review.repositoryName.toUpperCase()} (branch: {review.branch})</span>
-          <span>REPORT ID: {referenceId}</span>
-        </div>
-
-        {/* Executive Summary */}
-        <div className="space-y-1">
-          <div className="text-xs font-bold text-slate-900 uppercase font-mono">
-            Executive Summary
-          </div>
-          <p className="text-xs text-slate-700 leading-relaxed">
-            {review.executiveSummary ||
-              `Multi-agent analysis completed across ${review.totalFilesAnalyzed} source files (${review.totalLinesOfCode} LOC) in ${review.repositoryName}. Code quality scored ${review.scores.quality}%, OWASP security evaluated at ${review.scores.security}%, and overall system health reached ${review.scores.overall}/100. ${criticalCount > 0 ? `Detected ${criticalCount} critical security finding(s) requiring remediation prior to production certification.` : 'No critical blocking security vulnerabilities were identified in the scanned codebase.'}`}
-          </p>
-        </div>
-
-        {/* Scores */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="p-4 rounded-lg bg-slate-100 border border-slate-200">
-            <div className="text-[10px] uppercase font-mono text-slate-500">Overall health</div>
-            <div className="text-3xl font-black text-slate-900 mt-1">{review.scores.overall}/100</div>
-          </div>
-
-          <div className="p-4 rounded-lg bg-slate-100 border border-slate-200">
-            <div className="text-[10px] uppercase font-mono text-slate-500">Open findings</div>
-            <div className="text-3xl font-black text-slate-900 mt-1">
-              {String(review.findings?.length || 0).padStart(2, '0')}
-            </div>
-          </div>
-
-          <div className="p-4 rounded-lg bg-slate-100 border border-slate-200">
-            <div className="text-[10px] uppercase font-mono text-slate-500">Code quality</div>
-            <div className="text-3xl font-black text-slate-900 mt-1">{review.scores.quality}%</div>
-          </div>
-
-          <div className="p-4 rounded-lg bg-slate-100 border border-slate-200">
-            <div className="text-[10px] uppercase font-mono text-slate-500">OWASP security</div>
-            <div className="text-3xl font-black text-slate-900 mt-1">{review.scores.security}%</div>
-          </div>
-        </div>
-
-        {/* Findings Assessment Table */}
-        <div className="space-y-2">
-          <div className="text-xs font-bold text-slate-900 uppercase font-mono">
-            Defect &amp; Vulnerability Audit
-          </div>
-          {!review.findings || review.findings.length === 0 ? (
-            <div className="p-4 rounded bg-emerald-50 border border-emerald-200 text-xs text-emerald-800">
-              Zero defects or security vulnerabilities detected in the analyzed repository files.
-            </div>
-          ) : (
-            <table className="w-full text-left text-xs border border-slate-200">
-              <thead className="bg-slate-100 font-mono text-[10px] text-slate-700 border-b border-slate-200">
-                <tr>
-                  <th className="p-2.5">CATEGORY / FINDING</th>
-                  <th className="p-2.5">LOCATION</th>
-                  <th className="p-2.5 text-right">SEVERITY</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 text-slate-800">
-                {review.findings.map((finding) => (
-                  <tr key={finding.id}>
-                    <td className="p-2.5">
-                      <div className="font-semibold text-slate-900">{finding.title}</div>
-                      <div className="text-[10px] text-slate-500">{finding.owaspCategory || finding.category}</div>
-                    </td>
-                    <td className="p-2.5 font-mono text-[11px] text-slate-600">
-                      {finding.file}:{finding.lineStart}
-                    </td>
-                    <td className="p-2.5 text-right">
-                      <span
-                        className={`font-bold font-mono text-[10px] px-2 py-0.5 rounded ${
-                          finding.severity === 'Critical'
-                            ? 'bg-rose-100 text-rose-700 font-bold'
-                            : finding.severity === 'High'
-                            ? 'bg-orange-100 text-orange-700'
-                            : finding.severity === 'Medium'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-blue-100 text-blue-700'
-                        }`}
-                      >
-                        {finding.severity}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {verifyUrl && !revoked && (
+            <button
+              type="button"
+              onClick={handleRevokeShareLink}
+              className="inline-flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Revoke Link</span>
+            </button>
           )}
         </div>
 
-        {/* Compliance and Verification Seal */}
-        <div className="pt-4 border-t border-slate-200 flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full border-2 border-emerald-600 flex flex-col items-center justify-center text-[8px] font-black font-mono text-emerald-700 shrink-0">
-            <span>AI</span>
-            <span>REVIEW</span>
-          </div>
-          <div>
-            <div className="text-xs font-bold text-slate-900">Automated multi-agent analysis certified</div>
-            <div className="text-[10px] text-slate-500">
-              Generated by CodePilot AI Multi-Agent Audit Engine for academic evaluation and progress records.
-            </div>
-          </div>
-        </div>
-
-        <div className="text-center pt-2 text-[9px] font-mono text-slate-400">
-          Generated by CodePilot AI • {new Date().getFullYear()}
-        </div>
-      </div>
-
-      {/* Shareable Report Link Card */}
-      <div className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-5 space-y-3">
-        <h3 className="text-xs font-bold text-white font-mono uppercase tracking-wider">
-          Shareable report link
-        </h3>
         <p className="text-[11px] text-slate-400">
-          Share this direct audit URL with professors, evaluators, or project reviewers.
+          Generate an HMAC-signed, read-only verification URL (valid 7 days) allowing faculty or evaluators to verify the SHA-256 report digest online.
         </p>
 
-        <div className="flex items-center gap-2">
+        {revoked && (
+          <div className="text-xs text-red-400 font-mono">
+            Previous share link revoked. Click &quot;Generate &amp; Copy Link&quot; to issue a new token.
+          </div>
+        )}
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <input
             type="text"
             readOnly
-            value={typeof window !== 'undefined' ? window.location.href : `https://codepilot.ai/report/${review.id}`}
-            className="flex-1 px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-xs font-mono text-slate-300"
+            value={verifyUrl}
+            className="flex-1 px-3 py-2 rounded-lg bg-[#070a12] border border-[#1c2438] text-xs font-mono text-slate-300 min-w-0"
           />
-          <button
-            onClick={handleCopyLink}
-            className="px-4 py-2 rounded-lg bg-[#161f33] hover:bg-[#1f2c49] border border-[#22304d] text-xs font-semibold text-slate-200 transition-colors"
-          >
-            {copied ? 'Copied' : 'Copy'}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleCopyShareLink}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#161f33] hover:bg-[#1f2c49] border border-[#22304d] text-xs font-semibold text-slate-200 transition-colors"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copied ? 'Signed & Copied!' : 'Generate & Copy Link'}</span>
+            </button>
+
+            {verifyUrl && (
+              <a
+                href={verifyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-[#0a0f1d] hover:bg-[#161f33] border border-[#1c2438] text-xs text-blue-400"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Verify</span>
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </div>

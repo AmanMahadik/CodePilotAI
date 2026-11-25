@@ -8,24 +8,27 @@ import { Repository } from '@/lib/types';
 import { fetchStudentGithubRepositories, getCachedRepositories } from '@/lib/github';
 
 export default function RepositoriesPage() {
-  const { user, session } = useAuth();
+  const { user, session, signInWithGithub } = useAuth();
   const [activeFilter, setActiveFilter] = useState<'all' | 'connected' | 'languages'>('all');
   const [repos, setRepos] = useState<Repository[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+
+  const [githubLinked, setGithubLinked] = useState<boolean>(true);
 
   const loadRepos = useCallback(async (forceSync = false) => {
     if (forceSync) setSyncing(true);
     else setLoading(true);
 
     try {
-      const storedUsername = typeof window !== 'undefined' ? localStorage.getItem('codepilot_student_gh_username') : null;
-      const { repos: loadedRepos } = await fetchStudentGithubRepositories(
+      const { repos: loadedRepos, githubLinked: isLinked } = await fetchStudentGithubRepositories(
         user, 
-        session, 
-        storedUsername || undefined
+        session
       );
       setRepos(loadedRepos);
+      if (typeof isLinked === 'boolean') {
+        setGithubLinked(isLinked);
+      }
     } catch (e) {
       console.warn('Error loading repos:', e);
       setRepos(getCachedRepositories());
@@ -95,6 +98,30 @@ export default function RepositoriesPage() {
           </Link>
         </div>
       </div>
+
+      {/* GitHub Account Link CTA (For password-only users) */}
+      {!githubLinked && (
+        <div className="p-4 rounded-xl bg-[#0e172a] border border-[#1e2e4f] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+              <Github className="w-5 h-5 text-blue-400" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-white">Connect your GitHub Account</div>
+              <div className="text-xs text-slate-400">
+                Link your GitHub profile to unlock private repository reviews and automated multi-agent code analysis.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => signInWithGithub()}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-semibold transition-colors shrink-0 shadow-sm"
+          >
+            <Github className="w-4 h-4" />
+            <span>Link GitHub Account</span>
+          </button>
+        </div>
+      )}
 
       {/* Filter Pills */}
       <div className="flex items-center gap-2">

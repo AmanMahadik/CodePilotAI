@@ -8,6 +8,8 @@ const REVIEWS_KEY = 'codepilot_reviews';
 const NOTIFS_KEY = 'codepilot_notifications';
 const FACULTY_SUBMISSIONS_KEY = 'codepilot_faculty_submissions';
 
+const LEGACY_DEMO_REPO_NAMES = new Set(['ecommerce-microservices', 'e-commerce-microservices']);
+
 export interface FacultySubmission {
   id: string;
   name: string;
@@ -25,24 +27,16 @@ export interface FacultySubmission {
   reviewLink: string;
 }
 
-const DEFAULT_FACULTY_SUBMISSIONS: FacultySubmission[] = [
-  {
-    id: 'sub-rev-1',
-    name: 'Aman Mahadik',
-    prn: 'DEV-001',
-    rollNo: 'DEV-001',
-    batch: 'Active Cohort',
-    repoName: 'Society_Sync',
-    branch: 'main',
-    score: 80,
-    criticals: 0,
-    highs: 1,
-    status: 'Needs Review',
-    grade: 'Pending',
-    submittedAt: 'Recent',
-    reviewLink: '/report/rev-1',
-  },
-];
+const DEFAULT_FACULTY_SUBMISSIONS: FacultySubmission[] = [];
+
+function isLegacySampleReview(review: Review): boolean {
+  const repoLower = (review.repositoryName || '').toLowerCase();
+  if (LEGACY_DEMO_REPO_NAMES.has(repoLower)) return true;
+  if (review.id === 'rev-1' && review.repositoryName === 'Society_Sync' && review.institutionBranding?.rollNo === 'DEV-001') {
+    return true;
+  }
+  return false;
+}
 
 export function getStoredRepositories(): Repository[] {
   if (typeof window === 'undefined') return INITIAL_REPOSITORIES;
@@ -50,8 +44,9 @@ export function getStoredRepositories(): Repository[] {
     const data = localStorage.getItem(REPOS_KEY);
     if (!data) return INITIAL_REPOSITORIES;
     const parsed = JSON.parse(data);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_REPOSITORIES;
-  } catch (e) {
+    if (!Array.isArray(parsed)) return INITIAL_REPOSITORIES;
+    return parsed.filter((r: Repository) => !LEGACY_DEMO_REPO_NAMES.has((r.name || '').toLowerCase()));
+  } catch {
     return INITIAL_REPOSITORIES;
   }
 }
@@ -76,10 +71,24 @@ export function getStoredReviews(): Record<string, Review> {
     const data = localStorage.getItem(REVIEWS_KEY);
     if (!data) return INITIAL_REVIEWS;
     const parsed = JSON.parse(data);
-    return typeof parsed === 'object' && parsed !== null && Object.keys(parsed).length > 0 
-      ? { ...INITIAL_REVIEWS, ...parsed } 
-      : INITIAL_REVIEWS;
-  } catch (e) {
+    if (typeof parsed !== 'object' || parsed === null) return INITIAL_REVIEWS;
+
+    const cleaned: Record<string, Review> = {};
+    let hadLegacy = false;
+    for (const [k, rev] of Object.entries(parsed as Record<string, Review>)) {
+      if (rev && !isLegacySampleReview(rev)) {
+        cleaned[k] = rev;
+      } else {
+        hadLegacy = true;
+      }
+    }
+
+    if (hadLegacy) {
+      localStorage.setItem(REVIEWS_KEY, JSON.stringify(cleaned));
+    }
+
+    return cleaned;
+  } catch {
     return INITIAL_REVIEWS;
   }
 }
@@ -87,15 +96,15 @@ export function getStoredReviews(): Record<string, Review> {
 export function getLatestReview(): Review | undefined {
   const reviews = getStoredReviews();
   const values = Object.values(reviews);
-  if (values.length === 0) return INITIAL_REVIEWS['rev-1'];
+  if (values.length === 0) return undefined;
   return values.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 }
 
 export function getReviewById(id: string): Review | undefined {
   const reviews = getStoredReviews();
   if (reviews[id]) return reviews[id];
-  if (id === 'default' || id === 'rev-1') return INITIAL_REVIEWS['rev-1'] || getLatestReview();
-  return getLatestReview() || INITIAL_REVIEWS['rev-1'];
+  if (id === 'default' || id === 'latest') return getLatestReview();
+  return undefined;
 }
 
 export function saveReview(review: Review): void {
@@ -125,10 +134,10 @@ export function saveReview(review: Review): void {
 
   const submission: FacultySubmission = {
     id: `sub-${review.id}`,
-    name: review.institutionBranding?.studentName || 'Student Developer',
-    prn: review.institutionBranding?.rollNo || 'STU-001',
-    rollNo: review.institutionBranding?.rollNo || '01',
-    batch: review.institutionBranding?.batch || 'Active Cohort',
+    name: review.institutionBranding?.studentName || '',
+    prn: review.institutionBranding?.rollNo || '',
+    rollNo: review.institutionBranding?.rollNo || '',
+    batch: review.institutionBranding?.batch || '',
     repoName: review.repositoryName,
     branch: review.branch,
     score: review.scores.overall,
@@ -136,7 +145,7 @@ export function saveReview(review: Review): void {
     highs,
     status: 'Needs Review',
     grade: 'Pending',
-    submittedAt: 'Just now',
+    submittedAt: new Date().toLocaleDateString(),
     reviewLink: `/report/${review.id}`,
   };
 
@@ -156,8 +165,12 @@ export function getFacultySubmissions(): FacultySubmission[] {
     const data = localStorage.getItem(FACULTY_SUBMISSIONS_KEY);
     if (!data) return DEFAULT_FACULTY_SUBMISSIONS;
     const parsed = JSON.parse(data);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_FACULTY_SUBMISSIONS;
-  } catch (e) {
+    if (!Array.isArray(parsed)) return DEFAULT_FACULTY_SUBMISSIONS;
+    return parsed.filter(
+      (s: FacultySubmission) =>
+        !LEGACY_DEMO_REPO_NAMES.has((s.repoName || '').toLowerCase()) && s.id !== 'sub-rev-1'
+    );
+  } catch {
     return DEFAULT_FACULTY_SUBMISSIONS;
   }
 }
@@ -175,8 +188,8 @@ export function getStoredNotifications(): NotificationItem[] {
     const data = localStorage.getItem(NOTIFS_KEY);
     if (!data) return INITIAL_NOTIFICATIONS;
     const parsed = JSON.parse(data);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_NOTIFICATIONS;
-  } catch (e) {
+    return Array.isArray(parsed) ? parsed : INITIAL_NOTIFICATIONS;
+  } catch {
     return INITIAL_NOTIFICATIONS;
   }
 }

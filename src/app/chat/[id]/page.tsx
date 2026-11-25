@@ -100,7 +100,7 @@ export default function TerminalAIPage() {
     }
   }, [routeId, initialFindingId]);
 
-  const handleSend = (textToSend?: string) => {
+  const handleSend = async (textToSend?: string) => {
     const text = textToSend || input;
     if (!text.trim()) return;
 
@@ -110,9 +110,60 @@ export default function TerminalAIPage() {
       content: text,
       context: undefined,
     };
-    setMessages((prev) => [...prev, newMsg]);
+    const updatedMessages = [...messages, newMsg];
+    setMessages(updatedMessages);
     if (!textToSend) setInput('');
     setIsTyping(true);
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
+          repoName,
+          branch,
+          findings: review?.findings || [],
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.reply) {
+          const matchedFinding = review?.findings.find(
+            (f) =>
+              text.toLowerCase().includes(f.id.toLowerCase()) ||
+              text.toLowerCase().includes(f.title.toLowerCase())
+          );
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'assistant',
+              author: 'CodePilot AI • Groq Agent (gpt-oss-120b)',
+              content: data.reply,
+              context: matchedFinding
+                ? {
+                    file: matchedFinding.file,
+                    lines: `${matchedFinding.lineStart}-${matchedFinding.lineEnd}`,
+                    type: `${matchedFinding.severity} • ${matchedFinding.category}`,
+                  }
+                : data.rag?.chunks?.length > 0
+                ? {
+                    file: data.rag.chunks[0].filePath,
+                    lines: 'pgvector RAG',
+                    type: `${(data.rag.chunks[0].similarity * 100).toFixed(0)}% match`,
+                  }
+                : undefined,
+            },
+          ]);
+          setIsTyping(false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Groq chat API error, falling back to local heuristic response:', err);
+    }
 
     setTimeout(() => {
       let reply = '';
@@ -196,11 +247,11 @@ export default function TerminalAIPage() {
   const uniqueFiles = Array.from(new Set(review?.findings.map((f) => f.file) || []));
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto h-[calc(100vh-130px)] flex flex-col">
+    <div className="space-y-4 w-full max-w-[1600px] mx-auto min-h-[700px] h-[calc(100vh-115px)] flex flex-col">
       {/* Top Header */}
-      <div className="flex items-center justify-between pb-2 shrink-0">
+      <div className="flex items-center justify-between pb-1 shrink-0">
         <div>
-          <div className="text-[11px] font-mono text-slate-500 uppercase tracking-wider mb-1">
+          <div className="text-[11px] font-mono text-slate-500 uppercase tracking-wider mb-0.5">
             {repoName.toUpperCase()} / AI ASSISTANT
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
@@ -218,11 +269,11 @@ export default function TerminalAIPage() {
       </div>
 
       {/* Main Terminal Window with Landscape Two-Column Layout */}
-      <div className="flex-1 rounded-xl bg-[#0e1424] border border-[#1c2438] flex flex-col overflow-hidden">
+      <div className="flex-1 rounded-xl bg-[#0e1424] border border-[#22304d] shadow-2xl flex flex-col overflow-hidden">
         {/* Terminal Title Bar */}
-        <div className="px-4 py-2.5 bg-[#0a0f1d] border-b border-[#1c2438] flex items-center justify-between text-xs font-mono text-slate-400 shrink-0">
+        <div className="px-5 py-3 bg-[#0a0f1d] border-b border-[#1c2438] flex items-center justify-between text-xs font-mono text-slate-400 shrink-0">
           <div className="flex items-center gap-2">
-            <Logo size={18} rounded="rounded-sm" />
+            <Logo size={20} rounded="rounded-sm" />
             <span className="font-semibold text-white">CodePilot Terminal</span>
           </div>
           <span>{repoName} • {branch}</span>
@@ -230,8 +281,8 @@ export default function TerminalAIPage() {
 
         {/* 2-Column Split Body */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Left Panel: File Explorer (w-64) */}
-          <div className="w-64 bg-[#0a0f1d] border-r border-[#1c2438] p-3 flex flex-col justify-between shrink-0 overflow-y-auto">
+          {/* Left Panel: File Explorer */}
+          <div className="w-64 lg:w-72 bg-[#0a0f1d] border-r border-[#1c2438] p-4 flex flex-col justify-between shrink-0 overflow-y-auto hidden sm:flex">
             <div className="space-y-4">
               <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 uppercase tracking-wider">
                 <span>Explorer</span>
@@ -298,17 +349,17 @@ export default function TerminalAIPage() {
           </div>
 
           {/* Right Panel: Chat Conversation & Input */}
-          <div className="flex-1 flex flex-col justify-between p-4 overflow-hidden bg-[#0c111e]">
+          <div className="flex-1 flex flex-col justify-between p-5 sm:p-6 overflow-hidden bg-[#0c111e]">
             {/* Messages Scroll Area */}
             <div className="flex-1 overflow-y-auto space-y-4 pr-2">
               {messages.map((msg, i) => (
-                <div key={i} className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-4 space-y-3">
+                <div key={i} className="rounded-xl bg-[#0e1424] border border-[#1c2438] p-5 space-y-3">
                   <div className="flex items-center gap-2 text-xs font-bold text-white font-mono">
                     <Logo size={18} rounded="rounded-sm" />
                     <span>{msg.author}</span>
                   </div>
 
-                  <div className="text-xs text-slate-200 leading-relaxed font-sans whitespace-pre-line">
+                  <div className="text-sm text-slate-200 leading-relaxed font-sans whitespace-pre-line">
                     {msg.content}
                   </div>
 
@@ -371,12 +422,12 @@ export default function TerminalAIPage() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder={`Ask about ${repoName}...`}
-                    className="flex-1 px-3.5 py-2.5 rounded-lg bg-[#0e1424] border border-[#22304d] text-xs text-white placeholder:text-slate-500 font-mono focus:outline-none focus:border-[#388bfd]"
+                    className="flex-1 px-4 py-3 rounded-lg bg-[#0e1424] border border-[#22304d] text-sm text-white placeholder:text-slate-500 font-mono focus:outline-none focus:border-[#388bfd]"
                   />
                   <button
                     type="submit"
                     disabled={!input.trim()}
-                    className="w-9 h-9 rounded-lg bg-[#238636] hover:bg-[#2ea043] text-white flex items-center justify-center transition-colors disabled:opacity-40 shrink-0"
+                    className="w-11 h-11 rounded-lg bg-[#238636] hover:bg-[#2ea043] text-white flex items-center justify-center transition-colors disabled:opacity-40 shrink-0"
                   >
                     <ArrowUp className="w-4 h-4 stroke-[2.5]" />
                   </button>

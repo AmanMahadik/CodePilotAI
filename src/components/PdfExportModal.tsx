@@ -28,13 +28,13 @@ export default function PdfExportModal({ review, isOpen, onClose }: PdfExportMod
     review.institutionBranding?.enabled ?? true
   );
   const [institutionName, setInstitutionName] = useState(
-    review.institutionBranding?.institutionName || 'Department of Computer Science & Engineering'
+    review.institutionBranding?.institutionName || ''
   );
   const [studentName, setStudentName] = useState(
-    review.institutionBranding?.studentName || 'Candidate Author'
+    review.institutionBranding?.studentName || ''
   );
   const [prnRoll, setPrnRoll] = useState(
-    `Reference ID: ${review.institutionBranding?.rollNo || 'DEV-2026-001'} | Review Cycle`
+    review.institutionBranding?.rollNo || ''
   );
   const [isGenerating, setIsGenerating] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);

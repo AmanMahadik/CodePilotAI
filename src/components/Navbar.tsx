@@ -25,7 +25,7 @@ import { NotificationItem } from '@/lib/types';
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { user, signOut, isDemoUser, enableDemoUser } = useAuth();
+  const { user, signOut } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -48,9 +48,8 @@ export default function Navbar() {
   const navLinks = [
     { name: 'Dashboard', href: '/dashboard', icon: Layers },
     { name: 'New Review', href: '/review/new', icon: Sparkles },
-    { name: 'Latest Review', href: '/review/rev-1', icon: ShieldCheck },
-    { name: 'Repo Chat', href: '/chat/repo-1', icon: Terminal },
-    { name: 'Interview Prep', href: '/interview/repo-1', icon: HelpCircle },
+    { name: 'Repo Chat', href: '/chat/latest', icon: Terminal },
+    { name: 'Interview Prep', href: '/interview/latest', icon: HelpCircle },
   ];
 
   return (
@@ -67,7 +66,7 @@ export default function Navbar() {
                 <span className="font-bold text-lg text-white tracking-tight">CodePilot</span>
                 <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30">AI</span>
               </div>
-              <p className="text-[10px] text-slate-400 font-mono tracking-wider -mt-0.5">MIT AOE • CPA-PRD-001</p>
+              <p className="text-[10px] text-slate-400 font-mono tracking-wider -mt-0.5">Engineering Workspace</p>
             </div>
           </Link>
 
@@ -189,11 +188,6 @@ export default function Navbar() {
                       {user.user_metadata?.full_name || user.email?.split('@')[0]}
                     </p>
                     <p className="text-[10px] text-slate-400 font-mono truncate">{user.email}</p>
-                    {isDemoUser && (
-                      <span className="inline-block mt-1 text-[9px] font-semibold text-amber-400 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800">
-                        Demo Active
-                      </span>
-                    )}
                   </div>
                   <Link
                     href="/dashboard"
@@ -227,13 +221,6 @@ export default function Navbar() {
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <button
-                onClick={enableDemoUser}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 transition-colors"
-              >
-                <Sparkles className="w-3 h-3 text-amber-400" />
-                Quick Student Demo
-              </button>
               <Link
                 href="/auth/login"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 hover:bg-brand-500 text-white shadow-md shadow-brand-600/30 transition-colors"

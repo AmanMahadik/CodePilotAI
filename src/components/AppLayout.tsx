@@ -26,13 +26,29 @@ import { useAuth } from '@/lib/supabase/auth-context';
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, role, signOut, switchRole } = useAuth();
+  const { user, role, isLoading, signOut, switchRole } = useAuth();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [repoCount, setRepoCount] = useState(0);
   const [latestReviewId, setLatestReviewId] = useState<string | null>(null);
   const [findingsCount, setFindingsCount] = useState<number>(0);
 
   const isFaculty = role === 'faculty' || pathname.startsWith('/faculty');
+  const isPrintRoute = pathname.endsWith('/print');
+  const isVerifyRoute = pathname.endsWith('/verify');
+  const isPublicRoute =
+    pathname.startsWith('/auth') ||
+    pathname === '/' ||
+    pathname === '/documentation' ||
+    pathname === '/terms' ||
+    pathname === '/privacy' ||
+    isPrintRoute ||
+    isVerifyRoute;
+
+  useEffect(() => {
+    if (!isLoading && !user && !isPublicRoute) {
+      router.replace('/auth/login');
+    }
+  }, [isLoading, user, isPublicRoute, router]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -48,11 +64,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         const storedReviews = localStorage.getItem('codepilot_reviews');
         if (storedReviews) {
           const parsed = JSON.parse(storedReviews);
-          const revs = Object.values(parsed) as Array<{ id: string; findings?: unknown[] }>;
+          const revs = (Object.values(parsed) as Array<{ id: string; repositoryName?: string; findings?: unknown[] }>)
+            .filter((r) => r.repositoryName?.toLowerCase() !== 'ecommerce-microservices');
           if (revs.length > 0) {
             setLatestReviewId(revs[0].id);
             const total = revs.reduce((acc, r) => acc + (r.findings?.length || 0), 0);
             setFindingsCount(total);
+          } else {
+            setLatestReviewId(null);
+            setFindingsCount(0);
           }
         }
       } catch {}
@@ -85,8 +105,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || '';
 
-  // Standalone authentication layout check
-  const isAuthRoute = pathname.startsWith('/auth') || (pathname === '/' && !user);
+  // Dedicated pure print route (no app chrome at all)
+  if (isPrintRoute) {
+    return <>{children}</>;
+  }
+
+  // Show verification spinner while checking auth on protected routes
+  if (!isPublicRoute && (isLoading || !user)) {
+    return (
+      <div className="min-h-screen bg-[#090d16] text-[#e6edf3] flex flex-col items-center justify-center gap-4 font-sans">
+        <Logo size={44} rounded="rounded-2xl" className="shadow-xl shadow-blue-500/20 animate-pulse" />
+        <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
+          <RotateCw className="w-4 h-4 animate-spin text-[#58a6ff]" />
+          <span>Verifying session... Redirecting to login</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Standalone authentication or public verify layout check
+  const isAuthRoute = pathname.startsWith('/auth') || (pathname === '/' && !user) || isVerifyRoute;
 
   // If on login/registration/auth portal or unauthenticated root, render the standalone module layout
   if (isAuthRoute) {
@@ -149,7 +187,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#090d16] text-[#e6edf3] flex flex-col font-sans antialiased">
       {/* Top Header Bar */}
-      <header className="h-14 bg-[#0c101b] border-b border-[#1c2438] px-4 py-2.5 flex items-center justify-between sticky top-0 z-50 shrink-0">
+      <header className="h-14 bg-[#0c101b] border-b border-[#1c2438] px-4 py-2.5 flex items-center justify-between sticky top-0 z-50 shrink-0 print:hidden">
         <div className="flex items-center gap-2.5">
           {/* Official CodePilot Project Logo */}
           <Link href={isFaculty ? "/faculty" : "/dashboard"} className="flex items-center gap-2.5 group">
@@ -180,7 +218,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           ) : (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#161f33] border border-[#22304d] text-xs font-mono text-slate-300">
               <Shield className="w-3.5 h-3.5 text-slate-400" />
-              <span>{findingsCount || 15}</span>
+              <span>{findingsCount}</span>
             </div>
           )}
 
@@ -288,7 +326,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Main Workspace with Role-Specific Left Sidebar */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar */}
-        <aside className="w-64 bg-[#0c101b] border-r border-[#1c2438] flex flex-col shrink-0 select-none">
+        <aside className="w-64 bg-[#0c101b] border-r border-[#1c2438] flex flex-col shrink-0 select-none print:hidden">
           <div className="p-3 border-b border-[#1c2438]">
             <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 uppercase tracking-wider mb-2">
               <span>{isFaculty ? 'Evaluation Context' : 'Workspace'}</span>
@@ -620,13 +658,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* Main Content Area in Landscape */}
-        <main className="flex-1 overflow-y-auto bg-[#090d16] flex flex-col justify-between">
-          <div className="p-6 lg:p-8 flex-1">
+        <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden bg-[#090d16] flex flex-col justify-between print:bg-white print:overflow-visible">
+          <div className="p-6 lg:p-8 flex-1 min-w-0 print:p-0">
             {children}
           </div>
 
           {/* Academic Prototype Footer */}
-          <footer className="px-8 py-4 border-t border-[#1c2438] flex items-center justify-between text-[11px] text-slate-500 font-mono shrink-0">
+          <footer className="px-8 py-4 border-t border-[#1c2438] flex items-center justify-between text-[11px] text-slate-500 font-mono shrink-0 print:hidden">
             <span>© 2026 CodePilot AI • Engineering Platform</span>
             <span>Version v1.0.0-production</span>
           </footer>

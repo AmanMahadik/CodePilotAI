@@ -84,22 +84,39 @@
 
 ## ⚙️ Environment Configuration
 
-Create a `.env.local` file with your Supabase credentials:
+Create a `.env.local` file (see `.env.example`) with your credentials:
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://fdidwqlutymbyrdjjptx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_JdcfawAzKlJvd5gW9f6Arg_2XeZLOkj
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_JdcfawAzKlJvd5gW9f6Arg_2XeZLOkj
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+GROQ_API_KEY=gsk_your_groq_api_key
+JWT_SECRET=your-long-random-jwt-secret
+TOKEN_ENCRYPTION_KEY=your-64-char-hex-aes256-key
 ```
 
-### GitHub OAuth Setup in Supabase:
-1. In your GitHub account, go to **Settings > Developer Settings > OAuth Apps > New OAuth App**.
-2. Set **Homepage URL** to `http://localhost:3000` (or your production domain).
-3. Set **Authorization callback URL** to:
-   ```
-   https://fdidwqlutymbyrdjjptx.supabase.co/auth/v1/callback
-   ```
-4. Copy the **Client ID** and **Client Secret** into your Supabase Dashboard under **Authentication > Providers > GitHub**.
+### Institutional PDF Export & Verification Setup:
+- **Server-Side Rendering**: `GET` / `POST /api/reports/[id]/pdf` generates print-ready A4 PDFs using `puppeteer-core` and local Chrome/Edge (`CHROMIUM_EXECUTABLE_PATH` / `PUPPETEER_EXECUTABLE_PATH`).
+- **Dedicated Print View**: `/report/[id]/print` renders the isolated 8-section A4 document with `@page` headers/footers, subtle watermarks, and zero app chrome.
+- **Verification**: `/report/[id]/verify?t=...` validates the HMAC signature and SHA-256 report digest generated at export time.
+- **Vercel Deployment**: Set all keys from `.env.example` in Vercel **Project Settings > Environment Variables**. If deploying headless server-side Chromium on Vercel, provide `CHROMIUM_EXECUTABLE_PATH` (or install `@sparticuz/chromium`); otherwise, the Download PDF action falls back seamlessly to the clean `/report/[id]/print?autoprint=1` A4 layout.
+
+### GitHub OAuth App Registration:
+You can connect GitHub OAuth directly or via Supabase:
+1. In your GitHub account, go to **Settings > Developer Settings > OAuth Apps > New OAuth App**:
+   - **Application name**: `CodePilot AI`
+   - **Homepage URL**: `http://localhost:3000`
+   - **Authorization callback URL**:
+     ```
+     http://localhost:3000/api/auth/github/callback
+     ```
+     *(If using Supabase Auth proxy, also add: `https://<your-supabase-id>.supabase.co/auth/v1/callback`)*
+2. Generate a **Client Secret**.
+3. Add `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` to your `.env.local` (and to Supabase under **Authentication > Providers > GitHub**).
+
+### Database Migration:
+Apply the authentication and repositories migration in your Supabase SQL Editor:
+- File: [supabase/migrations/20261125_auth_system.sql](file:///C:/CodePilotAI/supabase/migrations/20261125_auth_system.sql)
+- Creates `public.users`, `public.oauth_accounts` (with AES-256-GCM token storage), and `public.repositories` with Row Level Security (RLS) policies.
 
 ---
 

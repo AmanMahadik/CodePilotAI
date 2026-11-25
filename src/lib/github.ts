@@ -64,18 +64,40 @@ export function mapGitHubToRepository(gh: GitHubRepoItem, ownerLogin?: string): 
 export async function fetchStudentGithubRepositories(
   user: User | null,
   session: Session | null,
-  manualUsername?: string
-): Promise<{ repos: Repository[]; rawCount: number; error: string | null }> {
+  _legacyUnusedParam?: string
+): Promise<{ repos: Repository[]; rawCount: number; error: string | null; githubLinked?: boolean }> {
   try {
-    // 1. Check for manual username or user_metadata username
-    const username = manualUsername || 
-                     user?.user_metadata?.user_name || 
-                     user?.user_metadata?.preferred_username ||
-                     (user?.app_metadata?.provider === 'github' ? user?.email?.split('@')[0] : null);
+    // 1. Try our server-side secure repository endpoint (which uses AES-256 decrypted tokens)
+    if (typeof window !== 'undefined') {
+      try {
+        const apiRes = await fetch('/api/repositories');
+        if (apiRes.ok) {
+          const apiData = await apiRes.json();
+          if (apiData.githubLinked && apiData.tokenValid && Array.isArray(apiData.repos) && apiData.repos.length > 0) {
+            const mapped = apiData.repos.map((item: GitHubRepoItem) => mapGitHubToRepository(item));
+            try {
+              localStorage.setItem('codepilot_student_repos', JSON.stringify(mapped));
+            } catch {}
+            return {
+              repos: mapped,
+              rawCount: mapped.length,
+              error: null,
+              githubLinked: true,
+            };
+          }
+        }
+      } catch (apiErr) {
+        console.warn('api/repositories fetch fallback:', apiErr);
+      }
+    }
 
-    // 2. Check for OAuth provider_token in session
+    // 2. Check for OAuth provider_token in Supabase session
     const providerToken = session?.provider_token || 
                           (typeof window !== 'undefined' ? localStorage.getItem('codepilot_gh_token') : null);
+
+    const username = user?.user_metadata?.user_name || 
+                     user?.user_metadata?.preferred_username ||
+                     (user?.app_metadata?.provider === 'github' ? user?.email?.split('@')[0] : null);
 
     let apiUrl = '';
     const headers: Record<string, string> = {
@@ -117,9 +139,6 @@ export async function fetchStudentGithubRepositories(
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('codepilot_student_repos', JSON.stringify(mapped));
-        if (username) {
-          localStorage.setItem('codepilot_student_gh_username', username);
-        }
       } catch (e) {
         console.warn('Could not cache repos in localStorage:', e);
       }
@@ -153,4 +172,56 @@ export function getCachedRepositories(): Repository[] {
 
   // Return empty array when no repositories are connected or cached
   return [];
+}
+
+/**
+ * Retrieves authored source code files for a given GitHub repository via our server-side proxy
+ * (/api/github/files) to avoid browser CORS restrictions on raw.githubusercontent.com.
+ */
+export async function getRepositorySourceFiles(
+  repoName: string,
+  repoUrl?: string,
+  sessionToken?: string | null,
+  owner?: string,
+  branch?: string
+): Promise<Record<string, string>> {
+  const token =
+    sessionToken ||
+    (typeof window !== 'undefined' ? localStorage.getItem('codepilot_gh_token') : null);
+
+  const effectiveUrl =
+    repoUrl ||
+    (owner && repoName ? `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}` : undefined);
+
+  if (!effectiveUrl && (!owner || !repoName)) {
+    return {};
+  }
+
+  try {
+    if (typeof window !== 'undefined') {
+      const proxyRes = await fetch('/api/github/files', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repoUrl: effectiveUrl,
+          owner,
+          repoName,
+          branch,
+          token,
+        }),
+      });
+
+      if (proxyRes.ok) {
+        const data = await proxyRes.json();
+        if (data?.files && typeof data.files === 'object') {
+          return data.files as Record<string, string>;
+        }
+      }
+    }
+
+    return {};
+  } catch (err) {
+    console.warn(`Failed to fetch source files for ${repoName}:`, err);
+    return {};
+  }
 }

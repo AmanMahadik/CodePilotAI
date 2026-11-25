@@ -46,7 +46,7 @@ export function detectLanguages(filePaths: string[]): { primary: string; distrib
   }
 
   if (Object.keys(distribution).length === 0) {
-    distribution['TypeScript'] = 100;
+    return { primary: 'None', distribution: {} };
   }
 
   return { primary, distribution };
@@ -123,12 +123,15 @@ export async function runMultiAgentReview(
 ): Promise<Review> {
   const reviewId = `rev-${Date.now()}`;
   const filePaths = Object.keys(files);
-  const totalFiles = Math.max(filePaths.length, 12);
+  if (filePaths.length === 0) {
+    throw new Error(`Cannot analyze repository "${repoName}": No source code files were found.`);
+  }
+
+  const totalFiles = filePaths.length;
   let totalLOC = 0;
   Object.values(files).forEach((content) => {
     totalLOC += content.split('\n').length;
   });
-  if (totalLOC === 0) totalLOC = 2840;
 
   const findings: Finding[] = [];
 
@@ -209,79 +212,20 @@ export async function runMultiAgentReview(
     }
   }
 
-  // If no findings were detected in empty or generic files, provide standard representative findings
-  if (findings.length === 0) {
-    findings.push(
-      {
-        id: `find-${Date.now()}-1`,
-        reviewId,
-        agentType: 'security',
-        category: 'security',
-        severity: 'High',
-        title: 'Unauthenticated Mutation Route Exposure',
-        description: 'Endpoint handler accepts updates to state without token authentication verification.',
-        principleExplanation:
-          'Endpoints modifying persistent resources must enforce strict identity and role-based permissions to satisfy OWASP A01 access control guidelines.',
-        file: 'src/routes/api.ts',
-        lineStart: 28,
-        lineEnd: 35,
-        codeSnippet: `router.post('/settings', async (req, res) => {\n  const { role } = req.body;\n  await updateUserRole(req.user.id, role);\n});`,
-        suggestedFix: 'Attach requireAuth and requireAdmin middleware prior to handler execution.',
-        owaspCategory: 'A01:2021 - Broken Access Control',
-        diff: {
-          original: `router.post('/settings', async (req, res) => {`,
-          modified: `router.post('/settings', requireAuth, requireAdmin, async (req, res) => {`,
-        },
-      },
-      {
-        id: `find-${Date.now()}-2`,
-        reviewId,
-        agentType: 'quality',
-        category: 'code-quality',
-        severity: 'Medium',
-        title: 'High Cyclomatic Complexity & Deep Nesting in Request Parser',
-        description: 'Nested conditionals exceed threshold of 6 branches, making unit test combinatorial coverage difficult.',
-        principleExplanation:
-          'Functions with excessive branch depth have higher defect rates and resist safe refactoring. Early returns and guard clauses improve readability.',
-        file: 'src/utils/parser.ts',
-        lineStart: 44,
-        lineEnd: 62,
-        codeSnippet: `if (data) {\n  if (data.user) {\n    if (data.user.profile) {\n      if (data.user.profile.isActive) { ... }`,
-        suggestedFix: 'Use guard clauses with early returns or optional chaining to flatten logic.',
-      },
-      {
-        id: `find-${Date.now()}-3`,
-        reviewId,
-        agentType: 'documentation',
-        category: 'documentation',
-        severity: 'Low',
-        title: 'Undocumented Exported Helper Functions',
-        description: 'Module exports public helper routines without JSDoc type contracts or behavior notes.',
-        principleExplanation:
-          'Undocumented public interfaces create knowledge silos and cause subtle type coercion defects across developer handoffs.',
-        file: 'src/utils/formatters.ts',
-        lineStart: 12,
-        lineEnd: 18,
-        codeSnippet: `export function formatCurrency(cents: number, currency = 'USD') {\n  return (cents / 100).toFixed(2);\n}`,
-        suggestedFix: 'Add JSDoc with @param and @returns descriptions.',
-      }
-    );
-  }
-
-  // Calculate scores based on findings
+  // Calculate scores based on real detected findings
   const criticals = findings.filter((f) => f.severity === 'Critical').length;
   const highs = findings.filter((f) => f.severity === 'High').length;
   const mediums = findings.filter((f) => f.severity === 'Medium').length;
   const lows = findings.filter((f) => f.severity === 'Low').length;
 
-  const securityScore = Math.max(30, 100 - criticals * 25 - highs * 15 - mediums * 5);
-  const qualityScore = Math.max(40, 100 - highs * 12 - mediums * 8 - lows * 3);
-  const reliabilityScore = Math.max(45, 100 - criticals * 15 - highs * 12 - mediums * 6);
-  const documentationScore = 82;
+  const securityScore = findings.length === 0 ? 100 : Math.max(30, 100 - criticals * 25 - highs * 15 - mediums * 5);
+  const qualityScore = findings.length === 0 ? 98 : Math.max(40, 100 - highs * 12 - mediums * 8 - lows * 3);
+  const reliabilityScore = findings.length === 0 ? 98 : Math.max(45, 100 - criticals * 15 - highs * 12 - mediums * 6);
+  const documentationScore = findings.length === 0 ? 95 : 85;
 
-  const overall = Math.round(
-    securityScore * 0.35 + qualityScore * 0.35 + reliabilityScore * 0.2 + documentationScore * 0.1
-  );
+  const overall = findings.length === 0 
+    ? 98 
+    : Math.round(securityScore * 0.35 + qualityScore * 0.35 + reliabilityScore * 0.2 + documentationScore * 0.1);
 
   // Calibration tone
   const tonePrefix =
@@ -299,7 +243,7 @@ export async function runMultiAgentReview(
       status: 'completed',
       progressPercent: 100,
       durationMs: 7600,
-      findingsCount: 1,
+      findingsCount: findings.filter((f) => f.agentType === 'repository').length,
       details: `Parsed ${totalFiles} files (${totalLOC} LOC). Checked dependency graphs and exclusion rules.`,
     },
     {
@@ -352,17 +296,19 @@ export async function runMultiAgentReview(
       documentation: documentationScore,
       reliability: reliabilityScore,
     },
-    executiveSummary: `${tonePrefix}CodePilot AI reviewed ${repoName} (${totalFiles} files, ${totalLOC} LOC). The codebase demonstrates a functional architecture with an overall health score of ${overall}/100. We detected ${findings.length} findings (${criticals} Critical, ${highs} High, ${mediums} Medium). Addressing the highlighted security and promise handling issues will ensure production reliability.`,
+    executiveSummary: findings.length === 0
+      ? `${tonePrefix}CodePilot AI completed multi-agent analysis on ${repoName} (${totalFiles} files, ${totalLOC} LOC). Zero blocking security defects or maintainability issues were detected. Codebase meets high code hygiene standards.`
+      : `${tonePrefix}CodePilot AI reviewed ${repoName} (${totalFiles} files, ${totalLOC} LOC). The codebase demonstrates a functional architecture with an overall health score of ${overall}/100. We detected ${findings.length} findings (${criticals} Critical, ${highs} High, ${mediums} Medium). Addressing the highlighted security and promise handling issues will ensure production reliability.`,
     agents,
     findings,
     shareToken: `cp-${Math.random().toString(36).substring(2, 10)}`,
     institutionBranding: brandingInfo || {
-      enabled: true,
-      institutionName: 'University Department of Computer Engineering',
-      department: 'Department of Computer Engineering',
-      batch: 'Batch B3',
-      studentName: 'Engineering Developer',
-      rollNo: 'DEV-001',
+      enabled: false,
+      institutionName: '',
+      department: '',
+      batch: '',
+      studentName: '',
+      rollNo: '',
     },
     readmeDraft: `# ${repoName}
 

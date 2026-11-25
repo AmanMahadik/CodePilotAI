@@ -12,14 +12,13 @@ import {
   Loader2, 
   AlertCircle, 
   CheckCircle2, 
-  GraduationCap,
-  Sparkles
+  GraduationCap
 } from 'lucide-react';
 import { useAuth } from '@/lib/supabase/auth-context';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { signUpWithEmail, signInWithGithub, signInWithGoogle, enableStudentDemo } = useAuth();
+  const { signUpWithEmail, signInWithGithub, signInWithGoogle } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,13 +37,13 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMsg('Password must be at least 6 characters');
+    if (password.length < 8) {
+      setErrorMsg('Password must be at least 8 characters');
       return;
     }
 
     setLoading(true);
-    const { error } = await signUpWithEmail(email, password);
+    const { error } = await signUpWithEmail(email, password, fullName);
     setLoading(false);
 
     if (error) {
@@ -199,19 +198,6 @@ export default function RegisterPage() {
                   <span>Create Account (FR-001)</span>
                 </button>
               </form>
-
-              <div className="pt-2 text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    enableStudentDemo();
-                    router.push('/dashboard');
-                  }}
-                  className="text-xs text-amber-400 hover:text-amber-300 inline-flex items-center gap-1 font-medium"
-                >
-                  <Sparkles className="w-3.5 h-3.5" /> Or bypass with Instant Student Demo
-                </button>
-              </div>
 
               <p className="text-center text-xs text-slate-400">
                 Already registered?{' '}

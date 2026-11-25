@@ -33,11 +33,9 @@ export default function OverviewDashboardPage() {
     else setLoadingRepos(true);
 
     try {
-      const storedUsername = typeof window !== 'undefined' ? localStorage.getItem('codepilot_student_gh_username') : null;
       const { repos: loadedRepos } = await fetchStudentGithubRepositories(
         user, 
-        session, 
-        storedUsername || undefined
+        session
       );
       setRepos(loadedRepos);
     } catch (e) {
