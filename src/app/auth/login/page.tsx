@@ -25,7 +25,7 @@ import { useAuth } from '@/lib/supabase/auth-context';
 function AuthAccountPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { signInWithGithub } = useAuth();
+  const { signInWithGithub, refreshSession } = useAuth();
 
   // Active Role Tab: 'student' | 'faculty'
   const [activePortal, setActivePortal] = useState<'student' | 'faculty'>('student');
@@ -160,6 +160,9 @@ function AuthAccountPageContent() {
         return;
       }
 
+      // Refresh client auth context before redirecting
+      await refreshSession();
+
       // Redirect to appropriate landing page
       if (data.user?.role === 'FACULTY') {
         router.push('/faculty');
@@ -215,6 +218,22 @@ function AuthAccountPageContent() {
         setLoading(false);
         return;
       }
+
+      if (data.emailConfirmationRequired) {
+        setVerifiedNotice(
+          data.message ||
+            'Account created! Please check your email inbox to confirm your address before signing in.'
+        );
+        if (activePortal === 'faculty') {
+          setFacultyTab('signin');
+        } else {
+          setStudentPasswordTab('signin');
+        }
+        setLoading(false);
+        return;
+      }
+
+      await refreshSession();
 
       // Successful registration
       if (targetRole === 'FACULTY') {

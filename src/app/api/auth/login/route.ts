@@ -6,9 +6,11 @@ import {
   checkLoginLockout, 
   recordFailedAttempt, 
   clearFailedAttempts,
+  getServerSupabaseClient,
   UserSessionPayload 
 } from '@/lib/auth-server';
-import { supabase } from '@/lib/supabase/client';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
@@ -38,6 +40,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Query user from DB
+    const serverSupabase = getServerSupabaseClient();
     let userRecord: {
       id: string;
       name: string;
@@ -50,29 +53,38 @@ export async function POST(req: NextRequest) {
     } | null = null;
 
     try {
-      const { data } = await supabase
+      const { data, error: lookupError } = await serverSupabase
         .from('users')
         .select('*')
         .eq('email', cleanEmail)
         .maybeSingle();
 
+      if (lookupError) {
+        console.warn('DB users lookup notice:', lookupError.message);
+      }
       userRecord = data;
     } catch (dbErr) {
       console.warn('DB lookup warning:', dbErr);
     }
 
-    // 3. Fallback to Supabase auth client if user record wasn't found in public.users
+    // 3. Fallback to Supabase Auth if user record wasn't found in public.users
     if (!userRecord || !userRecord.password_hash) {
+      let supaErrorMessage = '';
       try {
-        const { data: supaAuth, error: supaErr } = await supabase.auth.signInWithPassword({
+        const { data: supaAuth, error: supaErr } = await serverSupabase.auth.signInWithPassword({
           email: cleanEmail,
           password: password,
         });
 
+        if (supaErr) {
+          supaErrorMessage = supaErr.message || '';
+        }
+
         if (!supaErr && supaAuth.user) {
           clearFailedAttempts(rateLimitKey);
-          const role = (supaAuth.user.user_metadata?.role || 'STUDENT') as UserSessionPayload['role'];
-          const status = (supaAuth.user.user_metadata?.status || 'ACTIVE') as UserSessionPayload['status'];
+          const rawRole = String(supaAuth.user.user_metadata?.role || 'STUDENT').toUpperCase();
+          const role = (rawRole === 'FACULTY' || rawRole === 'ADMIN' ? rawRole : 'STUDENT') as UserSessionPayload['role'];
+          const status = (String(supaAuth.user.user_metadata?.status || 'ACTIVE').toUpperCase()) as UserSessionPayload['status'];
 
           const sessionPayload: UserSessionPayload = {
             id: supaAuth.user.id,
@@ -80,7 +92,8 @@ export async function POST(req: NextRequest) {
             name: supaAuth.user.user_metadata?.full_name || cleanEmail.split('@')[0],
             role,
             status,
-            email_verified: true,
+            email_verified: Boolean(supaAuth.user.email_confirmed_at),
+            institution: supaAuth.user.user_metadata?.institution || null,
           };
 
           const token = signJwt(sessionPayload);
@@ -92,12 +105,19 @@ export async function POST(req: NextRequest) {
           return response;
         }
       } catch {
-        // Fall through to generic error
+        // Fall through to structured error
+      }
+
+      if (supaErrorMessage.toLowerCase().includes('email not confirmed')) {
+        return NextResponse.json(
+          { error: 'Email not confirmed yet. Please check your inbox for the verification email before signing in.' },
+          { status: 401 }
+        );
       }
 
       recordFailedAttempt(rateLimitKey);
       return NextResponse.json(
-        { error: 'Invalid email or password' },
+        { error: 'Invalid email or password. New faculty evaluators must register via "Register as Faculty" first.' },
         { status: 401 }
       );
     }

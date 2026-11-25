@@ -19,6 +19,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   switchRole: (role: UserRole) => Promise<void>;
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -267,6 +268,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refreshSession = async () => {
+    try {
+      const meRes = await fetch('/api/auth/me', { cache: 'no-store' });
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        if (meData.authenticated && meData.user) {
+          const resolvedRole: UserRole =
+            meData.user.role?.toLowerCase() === 'faculty' ? 'faculty' : 'student';
+          const mappedUser = {
+            id: meData.user.id,
+            email: meData.user.email,
+            user_metadata: {
+              full_name: meData.user.name,
+              role: resolvedRole,
+              institution: meData.user.institution,
+            },
+            app_metadata: { provider: 'email' },
+            aud: 'authenticated',
+            created_at: new Date().toISOString(),
+          } as unknown as User;
+
+          setUser(mappedUser);
+          setRole(resolvedRole);
+          setIsDemoUser(false);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('codepilot_user_role', resolvedRole);
+          }
+        }
+      }
+    } catch {
+      // Ignore network errors
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -282,6 +317,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         resetPassword,
         signOut,
         switchRole,
+        refreshSession,
       }}
     >
       {children}
