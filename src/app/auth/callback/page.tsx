@@ -28,6 +28,18 @@ function AuthCallbackContent() {
         if (session?.provider_token) {
           localStorage.setItem('codepilot_gh_token', session.provider_token);
         }
+        const ghUser = session.user?.user_metadata?.user_name || 
+                       session.user?.user_metadata?.preferred_username ||
+                       (session.user?.app_metadata?.provider === 'github' ? session.user?.email?.split('@')[0] : null);
+        if (ghUser) {
+          localStorage.setItem('codepilot_student_gh_username', ghUser);
+        }
+        if (session.user?.user_metadata?.full_name) {
+          localStorage.setItem('codepilot_student_name', session.user.user_metadata.full_name);
+        }
+        if (session.user?.user_metadata?.avatar_url) {
+          localStorage.setItem('codepilot_student_avatar', session.user.user_metadata.avatar_url);
+        }
         await fetchStudentGithubRepositories(session.user, session);
       } catch (e) {
         console.warn('Repository sync error during callback:', e);

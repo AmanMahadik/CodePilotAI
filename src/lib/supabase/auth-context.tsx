@@ -18,9 +18,10 @@ interface AuthContextType {
   signUpWithEmail: (email: string, password: string, fullName?: string, role?: UserRole) => Promise<{ error: Error | null }>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
-  enableStudentDemo: () => void;
-  enableFacultyDemo: () => void;
+  enableStudentDemo: (customUsername?: string, customFullName?: string, customAvatar?: string) => void;
+  enableFacultyDemo: (customEmail?: string, customFullName?: string) => void;
   enableDemoUser: () => void;
+  connectGithubUser: (username: string, fullName?: string, avatarUrl?: string) => void;
   switchRole: (role: UserRole) => Promise<void>;
 }
 
@@ -39,16 +40,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return stored || 'student';
     }
 
-    // Aman Mahadik is explicitly a Student Developer
-    const email = (u.email || '').toLowerCase();
-    const fullName = ((u.user_metadata?.full_name as string) || '').toLowerCase();
-    if (email.includes('amanmahadik') || fullName.includes('aman mahadik')) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('codepilot_user_role', 'student');
-      }
-      return 'student';
-    }
-
     // Check localStorage saved role
     const storedRole = typeof window !== 'undefined' ? (localStorage.getItem('codepilot_user_role') as UserRole) : null;
     if (storedRole) return storedRole;
@@ -57,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (u.user_metadata?.role === 'faculty') return 'faculty';
     if (u.user_metadata?.role === 'student') return 'student';
 
-    // Default to student for all users
+    // Default to student for all users (e.g. GitHub OAuth users)
     return 'student';
   };
 
@@ -73,20 +64,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setRole(userRole);
           setIsDemoUser(false);
         } else {
-          // Check if demo user was explicitly enabled
+          // Check if demo/manual user was explicitly enabled
           const storedDemo = typeof window !== 'undefined' ? localStorage.getItem('codepilot_demo_active') : null;
           const storedRole = typeof window !== 'undefined' ? (localStorage.getItem('codepilot_user_role') as UserRole) : null;
-          if (storedDemo === 'true') {
+          const storedGhUsername = typeof window !== 'undefined' ? localStorage.getItem('codepilot_student_gh_username') : null;
+          const storedFullName = typeof window !== 'undefined' ? localStorage.getItem('codepilot_student_name') : null;
+          const storedAvatar = typeof window !== 'undefined' ? localStorage.getItem('codepilot_student_avatar') : null;
+
+          if (storedDemo === 'true' || storedGhUsername) {
             const isFaculty = storedRole === 'faculty';
+            const username = storedGhUsername || (isFaculty ? 'faculty-evaluator' : 'student-dev');
+            const displayName = storedFullName || (isFaculty ? 'Faculty Reviewer' : username);
             setIsDemoUser(true);
             setRole(isFaculty ? 'faculty' : 'student');
             setUser({
-              id: isFaculty ? 'demo-faculty-user' : 'demo-student-user',
-              email: isFaculty ? 'faculty@university.edu' : 'student@university.edu',
+              id: isFaculty ? 'demo-faculty-user' : `user-${username}`,
+              email: isFaculty ? 'faculty@university.edu' : `${username}@github.user`,
               user_metadata: {
-                full_name: isFaculty ? 'Faculty Reviewer' : 'Student Developer',
+                full_name: displayName,
+                avatar_url: storedAvatar || null,
                 role: isFaculty ? 'faculty' : 'student',
-                institution: 'University Engineering Department',
+                user_name: username,
+                preferred_username: username,
+                institution: 'Department of Computer Science & Engineering',
               },
               app_metadata: { provider: isFaculty ? 'email' : 'github' },
               aud: 'authenticated',
@@ -232,6 +232,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('codepilot_demo_active');
     localStorage.removeItem('codepilot_demo_user');
     localStorage.removeItem('codepilot_user_role');
+    localStorage.removeItem('codepilot_student_gh_username');
+    localStorage.removeItem('codepilot_student_name');
+    localStorage.removeItem('codepilot_student_avatar');
+    localStorage.removeItem('codepilot_student_repos');
+    localStorage.removeItem('codepilot_gh_token');
     setIsDemoUser(false);
     setUser(null);
     setSession(null);
@@ -242,19 +247,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const enableStudentDemo = () => {
+  const connectGithubUser = (username: string, fullName?: string, avatarUrl?: string) => {
+    const cleanUsername = username.trim().replace(/^@/, '');
+    const cleanName = fullName?.trim() || cleanUsername;
     localStorage.setItem('codepilot_demo_active', 'true');
     localStorage.setItem('codepilot_user_role', 'student');
+    localStorage.setItem('codepilot_student_gh_username', cleanUsername);
+    localStorage.setItem('codepilot_student_name', cleanName);
+    if (avatarUrl) {
+      localStorage.setItem('codepilot_student_avatar', avatarUrl);
+    } else {
+      localStorage.removeItem('codepilot_student_avatar');
+    }
+
     setIsDemoUser(true);
     setRole('student');
     setUser({
-      id: 'demo-student-user',
-      email: 'student@university.edu',
+      id: `gh-user-${cleanUsername}`,
+      email: `${cleanUsername}@users.noreply.github.com`,
       user_metadata: {
-        full_name: 'Aman Mahadik',
-        avatar_url: null,
+        full_name: cleanName,
+        avatar_url: avatarUrl || `https://github.com/${cleanUsername}.png`,
         role: 'student',
-        user_name: 'amanmahadik',
+        user_name: cleanUsername,
+        preferred_username: cleanUsername,
         institution: 'Department of Computer Science & Engineering',
       },
       app_metadata: { provider: 'github' },
@@ -263,16 +279,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } as unknown as User);
   };
 
-  const enableFacultyDemo = () => {
+  const enableStudentDemo = (customUsername?: string, customFullName?: string, customAvatar?: string) => {
+    const storedUsername = typeof window !== 'undefined' ? localStorage.getItem('codepilot_student_gh_username') : null;
+    const username = customUsername || storedUsername || 'student-dev';
+    const fullName = customFullName || (username !== 'student-dev' ? username : 'Student Developer');
+    connectGithubUser(username, fullName, customAvatar);
+  };
+
+  const enableFacultyDemo = (customEmail?: string, customFullName?: string) => {
     localStorage.setItem('codepilot_demo_active', 'true');
     localStorage.setItem('codepilot_user_role', 'faculty');
     setIsDemoUser(true);
     setRole('faculty');
     setUser({
       id: 'demo-faculty-user',
-      email: 'faculty@university.edu',
+      email: customEmail || 'faculty@university.edu',
       user_metadata: {
-        full_name: 'Faculty Evaluator',
+        full_name: customFullName || 'Faculty Evaluator',
         avatar_url: null,
         role: 'faculty',
         user_name: 'faculty-evaluator',
@@ -300,7 +323,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signOut,
         enableStudentDemo,
         enableFacultyDemo,
-        enableDemoUser: enableStudentDemo,
+        enableDemoUser: () => enableStudentDemo(),
+        connectGithubUser,
         switchRole,
       }}
     >

@@ -55,7 +55,8 @@ export default function InstitutionalReportPage() {
         setCandidateName(
           found.institutionBranding?.studentName ||
           user?.user_metadata?.full_name || 
-          'Aman Mahadik (DEV-001)'
+          user?.user_metadata?.user_name ||
+          'Student Developer'
         );
       }
       setLoading(false);

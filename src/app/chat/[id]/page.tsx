@@ -3,15 +3,15 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
-import { 
-  Command, 
-  Send, 
-  FileCode, 
-  Folder, 
-  FolderOpen, 
-  ChevronDown, 
-  ChevronRight, 
-  Bot, 
+import {
+  Command,
+  Send,
+  FileCode,
+  Folder,
+  FolderOpen,
+  ChevronDown,
+  ChevronRight,
+  Bot,
   ArrowUp,
   Loader2,
   FolderGit2
@@ -19,7 +19,8 @@ import {
 import Logo from '@/components/Logo';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { getReviewById, getLatestReview, getStoredRepositories } from '@/lib/store';
-import { Review, Finding } from '@/lib/types';
+import { Review, Finding, Repository } from '@/lib/types';
+import { RepositoryRagIndex } from '@/lib/rag-engine';
 
 interface ChatItem {
   role: 'assistant' | 'user';
@@ -29,6 +30,7 @@ interface ChatItem {
     file: string;
     lines: string;
     type: string;
+    codeSnippet?: string;
   };
 }
 
@@ -46,6 +48,8 @@ export default function TerminalAIPage() {
   const [messages, setMessages] = useState<ChatItem[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [ragEngine, setRagEngine] = useState<RepositoryRagIndex | null>(null);
+  const [allRepoFiles, setAllRepoFiles] = useState<string[]>([]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -60,19 +64,30 @@ export default function TerminalAIPage() {
       setRepoName(determinedName);
       setBranch(determinedBranch);
 
+      const filesMap = activeReview?.files || matchingRepo?.files || {
+        'src/index.ts': `// Application root for ${determinedName}\nimport express from 'express';\nconst app = express();\nconst PORT = process.env.PORT || 3000;\n\napp.get('/api/health', (req, res) => res.json({ status: 'ok', service: '${determinedName}' }));\napp.listen(PORT, () => console.log('Listening on ' + PORT));\n`,
+        'src/auth.ts': `// Authentication & session validation\nimport jwt from 'jsonwebtoken';\nconst JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key';\n\nexport function verifySession(token: string) {\n  try {\n    return jwt.verify(token, JWT_SECRET);\n  } catch (err) {\n    return null;\n  }\n}\n`,
+        'README.md': `# ${determinedName}\n\nAutomated analysis target repository.\n## Getting Started\n\`\`\`bash\nnpm install\nnpm run dev\n\`\`\`\n`,
+      };
+
+      const index = new RepositoryRagIndex(determinedName, filesMap, activeReview?.findings || []);
+      setRagEngine(index);
+      setAllRepoFiles(Object.keys(filesMap));
+
       // Initial system message
       const defaultMsg: ChatItem = {
         role: 'assistant',
-        author: 'CodePilot AI • Repository Agent',
+        author: 'CodePilot AI • RAG Agent',
         content: activeReview
-          ? `Hello! I have indexed ${determinedName} (${determinedBranch}). I can explain its architecture, inspect code findings, evaluate AST structures, and suggest safe refactoring solutions.`
-          : `Hello! CodePilot Terminal is online. Connect or review a repository to inspect codebase architecture, OWASP vulnerabilities, and AST metrics.`,
+          ? `Hello! I have indexed ${determinedName} (${determinedBranch}) using the Repository Grounded RAG Engine. I have chunked ${Object.keys(filesMap).length} source files and indexed ${activeReview.findings.length} findings with line-level citations. Ask me anything about architecture, vulnerabilities, or code logic!`
+          : `Hello! CodePilot Terminal RAG Engine is online. Connect or review a repository to inspect codebase architecture, OWASP vulnerabilities, and AST metrics.`,
         context: activeReview?.findings?.[0]
           ? {
-              file: activeReview.findings[0].file,
-              lines: `${activeReview.findings[0].lineStart}-${activeReview.findings[0].lineEnd}`,
-              type: `${activeReview.findings[0].severity} • ${activeReview.findings[0].category}`,
-            }
+            file: activeReview.findings[0].file,
+            lines: `${activeReview.findings[0].lineStart}-${activeReview.findings[0].lineEnd}`,
+            type: `${activeReview.findings[0].severity} • ${activeReview.findings[0].category}`,
+            codeSnippet: activeReview.findings[0].codeSnippet,
+          }
           : undefined,
       };
 
@@ -84,12 +99,13 @@ export default function TerminalAIPage() {
         if (targetFinding) {
           const followUpMsg: ChatItem = {
             role: 'assistant',
-            author: 'CodePilot AI • Security & Quality Agent',
+            author: 'CodePilot AI • RAG Agent',
             content: `Inspecting finding ${targetFinding.id}: **${targetFinding.title}**\n\n${targetFinding.principleExplanation || targetFinding.description}\n\nSuggested Fix: ${targetFinding.suggestedFix || 'Apply recommended parameterization and validations.'}`,
             context: {
               file: targetFinding.file,
               lines: `${targetFinding.lineStart}-${targetFinding.lineEnd}`,
               type: `${targetFinding.severity} • ${targetFinding.owaspCategory || targetFinding.category}`,
+              codeSnippet: targetFinding.codeSnippet,
             },
           };
           setMessages([defaultMsg, followUpMsg]);
@@ -116,81 +132,35 @@ export default function TerminalAIPage() {
 
     setTimeout(() => {
       let reply = '';
-      let ctx: { file: string; lines: string; type: string } | undefined = undefined;
+      let ctx: { file: string; lines: string; type: string; codeSnippet?: string } | undefined = undefined;
 
-      const lower = text.toLowerCase();
-
-      // Check if user is asking about a specific finding
-      const matchedFinding = review?.findings.find(
-        (f) =>
-          lower.includes(f.id.toLowerCase()) ||
-          lower.includes(f.title.toLowerCase()) ||
-          (f.category && lower.includes(f.category.toLowerCase())) ||
-          (f.owaspCategory && lower.includes(f.owaspCategory.toLowerCase().slice(0, 10)))
-      );
-
-      if (matchedFinding) {
-        reply = `Regarding **${matchedFinding.title}** (${matchedFinding.id}) in \`${matchedFinding.file}\`:\n\n${matchedFinding.principleExplanation || matchedFinding.description}\n\n**Remediation:** ${matchedFinding.suggestedFix || 'Ensure defensive validation and follow OWASP best practices.'}`;
-        ctx = {
-          file: matchedFinding.file,
-          lines: `${matchedFinding.lineStart}-${matchedFinding.lineEnd}`,
-          type: `${matchedFinding.severity} • ${matchedFinding.category}`,
-        };
-      } else if (lower.includes('architecture') || lower.includes('structure')) {
-        reply = `${repoName} is structured as a modular repository (${review?.totalFilesAnalyzed || 1} indexed files, ${review?.totalLinesOfCode || 100} lines of code). The multi-agent pipeline evaluated clean boundaries across interface controllers, domain logic, and persistent storage abstractions.`;
-        if (review?.findings?.[0]) {
+      if (ragEngine) {
+        const ragRes = ragEngine.generateAnswer(text, review);
+        reply = ragRes.answer;
+        if (ragRes.citations && ragRes.citations.length > 0) {
+          const topCit = ragRes.citations[0];
           ctx = {
-            file: review.findings[0].file,
-            lines: `${review.findings[0].lineStart}-${review.findings[0].lineEnd}`,
-            type: 'Architecture Boundary Review',
+            file: topCit.file,
+            lines: topCit.lineRange,
+            type: topCit.type,
+            codeSnippet: topCit.codeSnippet,
           };
-        }
-      } else if (lower.includes('security') || lower.includes('vulnerability') || lower.includes('owasp')) {
-        const secFindings = review?.findings.filter((f) => f.agentType === 'security' || f.category === 'security') || [];
-        if (secFindings.length > 0) {
-          reply = `Security analysis for ${repoName} flagged ${secFindings.length} vulnerability pattern(s). Critical focus: ${secFindings.map((f) => `\`${f.title}\` in ${f.file}`).join(', ')}.`;
-          ctx = {
-            file: secFindings[0].file,
-            lines: `${secFindings[0].lineStart}-${secFindings[0].lineEnd}`,
-            type: `${secFindings[0].severity} • Security Context`,
-          };
-        } else {
-          reply = `Security audit completed for ${repoName}. No critical OWASP Top 10 vulnerabilities or secret leaks were detected in current indexed sources.`;
-        }
-      } else if (lower.includes('fix') || lower.includes('refactor')) {
-        if (review?.findings && review.findings.length > 0) {
-          const topFinding = review.findings[0];
-          reply = `Recommended refactoring for ${topFinding.file}:\n${topFinding.suggestedFix || 'Refactor to isolate side effects, apply strict typing, and enforce input validation.'}`;
-          ctx = {
-            file: topFinding.file,
-            lines: `${topFinding.lineStart}-${topFinding.lineEnd}`,
-            type: 'Refactoring Direction',
-          };
-        } else {
-          reply = `Codebase maintainability is currently rated at ${review?.scores?.quality || 90}%. Standardize error boundaries and ensure complete test coverage on exported service functions.`;
         }
       } else {
-        reply = `I analyzed your query against the ${repoName} AST symbol graph. To maintain high code health and pass automated checks, ensure functions follow single responsibility and keep cyclomatic branch complexity bounded.`;
-        if (review?.findings?.[0]) {
-          ctx = {
-            file: review.findings[0].file,
-            lines: `${review.findings[0].lineStart}-${review.findings[0].lineEnd}`,
-            type: 'Repository Context',
-          };
-        }
+        reply = `I processed your request regarding ${repoName}. To ground responses, ensure repository files are indexed.`;
       }
 
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          author: 'CodePilot AI • Repository Agent',
+          author: 'CodePilot AI • RAG Agent',
           content: reply,
           context: ctx,
         },
       ]);
       setIsTyping(false);
-    }, 900);
+    }, 600);
   };
 
   const uniqueFiles = Array.from(new Set(review?.findings.map((f) => f.file) || []));
@@ -246,8 +216,8 @@ export default function TerminalAIPage() {
                 </div>
 
                 <div className="pl-3 space-y-1">
-                  {uniqueFiles.length > 0 ? (
-                    uniqueFiles.map((filePath, idx) => (
+                  {(allRepoFiles.length > 0 ? allRepoFiles : uniqueFiles).length > 0 ? (
+                    (allRepoFiles.length > 0 ? allRepoFiles : uniqueFiles).map((filePath, idx) => (
                       <div
                         key={idx}
                         onClick={() => handleSend(`Explain code in ${filePath}`)}
@@ -281,13 +251,12 @@ export default function TerminalAIPage() {
                       title={f.title}
                     >
                       <span
-                        className={`w-2 h-2 rounded-full shrink-0 ${
-                          f.severity === 'Critical'
-                            ? 'bg-[#da3633]'
-                            : f.severity === 'High'
+                        className={`w-2 h-2 rounded-full shrink-0 ${f.severity === 'Critical'
+                          ? 'bg-[#da3633]'
+                          : f.severity === 'High'
                             ? 'bg-[#f0883e]'
                             : 'bg-[#e3b341]'
-                        }`}
+                          }`}
                       ></span>
                       <span className="truncate text-[11px]">{f.title}</span>
                     </div>
@@ -314,16 +283,24 @@ export default function TerminalAIPage() {
 
                   {/* Context snippet if present */}
                   {msg.context && (
-                    <div className="p-3 rounded-lg bg-[#070a12] border border-[#172033] font-mono text-[11px] space-y-1">
-                      <div className="text-[10px] uppercase text-slate-500 tracking-wider">
-                        SOURCE CONTEXT
+                    <div className="p-3 rounded-lg bg-[#070a12] border border-[#172033] font-mono text-[11px] space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px] uppercase text-slate-500 tracking-wider">
+                        <span>GROUNDED RAG CITATION</span>
+                        <span className="text-[#3fb950] font-semibold">Vector & Symbol Match</span>
                       </div>
-                      <div className="text-[#58a6ff] font-semibold">
-                        {msg.context.file} • Lines {msg.context.lines}
+                      <div className="text-[#58a6ff] font-semibold flex items-center gap-1.5">
+                        <FileCode className="w-3.5 h-3.5 shrink-0" />
+                        <span>{msg.context.file}</span>
+                        <span className="text-slate-400 font-normal">• Lines {msg.context.lines}</span>
                       </div>
                       <div className="text-slate-400 text-[10px]">
                         {msg.context.type}
                       </div>
+                      {msg.context.codeSnippet && (
+                        <pre className="p-2.5 rounded bg-[#04060a] border border-[#141b2d] text-slate-300 text-[10px] overflow-x-auto whitespace-pre font-mono leading-relaxed mt-1">
+                          {msg.context.codeSnippet}
+                        </pre>
+                      )}
                     </div>
                   )}
                 </div>

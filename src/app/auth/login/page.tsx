@@ -3,11 +3,11 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { 
-  Github, 
-  Check, 
-  ArrowRight, 
-  Loader2, 
+import {
+  Github,
+  Check,
+  ArrowRight,
+  Loader2,
   AlertCircle,
   GraduationCap,
   School,
@@ -18,12 +18,13 @@ import { useAuth } from '@/lib/supabase/auth-context';
 
 export default function AuthAccountPage() {
   const router = useRouter();
-  const { 
-    signInWithGithub, 
-    signInWithEmail, 
-    signUpWithEmail, 
-    enableStudentDemo, 
-    enableFacultyDemo 
+  const {
+    signInWithGithub,
+    signInWithEmail,
+    signUpWithEmail,
+    enableStudentDemo,
+    enableFacultyDemo,
+    connectGithubUser
   } = useAuth();
 
   // Active role tab: student (GitHub) vs faculty (Email)
@@ -40,7 +41,7 @@ export default function AuthAccountPage() {
       if (error) {
         console.error('GitHub sign in error:', error);
         if (error.message?.includes('not enabled') || (error as { error_code?: string })?.error_code === 'validation_failed') {
-          setLoginError('GitHub Provider is not enabled in Supabase. Go to Supabase Dashboard > Authentication > Providers > GitHub, toggle it ON, enter your Client ID & Secret, and save.');
+          setLoginError('GitHub OAuth provider is not configured in Supabase. You can enter any GitHub username below to instantly connect your public repositories!');
         } else {
           setLoginError(error.message);
         }
@@ -54,29 +55,46 @@ export default function AuthAccountPage() {
 
   const handleManualGithubConnect = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!manualGhUser.trim()) return;
+    const cleanUser = manualGhUser.trim().replace(/^@/, '');
+    if (!cleanUser) return;
     setManualGhLoading(true);
     setLoginError(null);
     try {
+      // 1. Fetch user public profile from GitHub to get real name & avatar
+      let fullName = cleanUser;
+      let avatarUrl = `https://github.com/${cleanUser}.png`;
+      try {
+        const profileRes = await fetch(`https://api.github.com/users/${encodeURIComponent(cleanUser)}`);
+        if (profileRes.ok) {
+          const profileData = await profileRes.json();
+          if (profileData?.name) fullName = profileData.name;
+          if (profileData?.avatar_url) avatarUrl = profileData.avatar_url;
+        }
+      } catch {
+        // Fallback to avatarUrl generated above
+      }
+
+      // 2. Fetch user repositories
       const { fetchStudentGithubRepositories } = await import('@/lib/github');
-      const res = await fetchStudentGithubRepositories(null, null, manualGhUser.trim());
-      if (res.error) {
-        setLoginError(`Could not find GitHub user "${manualGhUser}": ${res.error}`);
+      const res = await fetchStudentGithubRepositories(null, null, cleanUser);
+      if (res.error && !res.repos.length) {
+        setLoginError(`Could not find GitHub user "${cleanUser}": ${res.error}`);
         setManualGhLoading(false);
         return;
       }
-      // Save active username and redirect
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('codepilot_student_gh_username', manualGhUser.trim());
-        localStorage.setItem('codepilot_demo_active', 'true');
-        localStorage.setItem('codepilot_user_role', 'student');
-      }
-      enableStudentDemo();
+
+      // 3. Connect as student with their real GitHub identity
+      connectGithubUser(cleanUser, fullName, avatarUrl);
       router.push('/dashboard');
     } catch (err: unknown) {
-      setLoginError((err as Error).message);
+      setLoginError((err as Error).message || 'Failed to load GitHub user');
       setManualGhLoading(false);
     }
+  };
+
+  const handleStudentDemo = () => {
+    enableStudentDemo('student-developer', 'Student Developer');
+    router.push('/dashboard');
   };
 
   // Login form state (Faculty)
@@ -124,11 +142,6 @@ export default function AuthAccountPage() {
     }
   };
 
-  const handleStudentDemo = () => {
-    enableStudentDemo();
-    router.push('/dashboard');
-  };
-
   const handleFacultyDemo = () => {
     enableFacultyDemo();
     router.push('/faculty');
@@ -153,11 +166,10 @@ export default function AuthAccountPage() {
       <div className="p-1.5 rounded-xl bg-[#0e1424] border border-[#1c2438] flex max-w-md">
         <button
           onClick={() => setActivePortal('student')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
-            activePortal === 'student'
-              ? 'bg-[#18233c] text-white border border-[#388bfd] shadow-sm'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${activePortal === 'student'
+            ? 'bg-[#18233c] text-white border border-[#388bfd] shadow-sm'
+            : 'text-slate-400 hover:text-slate-200'
+            }`}
         >
           <GraduationCap className="w-4 h-4 text-[#58a6ff]" />
           <span>Student Portal (GitHub)</span>
@@ -165,11 +177,10 @@ export default function AuthAccountPage() {
 
         <button
           onClick={() => setActivePortal('faculty')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
-            activePortal === 'faculty'
-              ? 'bg-[#18233c] text-white border border-[#388bfd] shadow-sm'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${activePortal === 'faculty'
+            ? 'bg-[#18233c] text-white border border-[#388bfd] shadow-sm'
+            : 'text-slate-400 hover:text-slate-200'
+            }`}
         >
           <School className="w-4 h-4 text-[#3fb950]" />
           <span>Faculty Portal (Email)</span>
@@ -413,11 +424,10 @@ export default function AuthAccountPage() {
               className="flex items-start gap-2 pt-1 text-xs text-slate-400 cursor-pointer select-none"
             >
               <div
-                className={`w-4 h-4 mt-0.5 rounded border flex items-center justify-center transition-colors shrink-0 ${
-                  agreeTerms
-                    ? 'bg-[#1f6feb] border-[#1f6feb] text-white'
-                    : 'border-slate-600 bg-transparent'
-                }`}
+                className={`w-4 h-4 mt-0.5 rounded border flex items-center justify-center transition-colors shrink-0 ${agreeTerms
+                  ? 'bg-[#1f6feb] border-[#1f6feb] text-white'
+                  : 'border-slate-600 bg-transparent'
+                  }`}
               >
                 {agreeTerms && <Check className="w-3 h-3 stroke-[3]" />}
               </div>

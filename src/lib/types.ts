@@ -77,6 +77,7 @@ export interface Review {
     studentName?: string;
     rollNo?: string;
   };
+  files?: Record<string, string>; // Path -> Content map for RAG indexing
 }
 
 export interface Repository {
