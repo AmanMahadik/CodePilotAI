@@ -12,7 +12,7 @@ interface AuthContextType {
   role: UserRole;
   isLoading: boolean;
   isDemoUser: boolean;
-  signInWithGithub: () => Promise<{ error: Error | null }>;
+  signInWithGithub: (options?: { loginHint?: string }) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
   signInWithEmail: (email: string, password: string, role?: UserRole) => Promise<{ error: Error | null }>;
   signUpWithEmail: (email: string, password: string, fullName?: string, role?: UserRole) => Promise<{ error: Error | null }>;
@@ -139,15 +139,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signInWithGithub = async () => {
+  const signInWithGithub = async (options?: { loginHint?: string }) => {
     try {
+      if (typeof window !== 'undefined') {
+        // Clear any previously cached student/GitHub session data before starting account selection
+        localStorage.removeItem('codepilot_demo_active');
+        localStorage.removeItem('codepilot_demo_user');
+        localStorage.removeItem('codepilot_student_gh_username');
+        localStorage.removeItem('codepilot_student_name');
+        localStorage.removeItem('codepilot_student_avatar');
+        localStorage.removeItem('codepilot_student_repos');
+        localStorage.removeItem('codepilot_gh_token');
+      }
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {}
+
       const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
+      const queryParams: Record<string, string> = {
+        role: 'student',
+        prompt: 'select_account',
+      };
+      const cleanLogin = options?.loginHint?.trim().replace(/^@/, '');
+      if (cleanLogin) {
+        queryParams.login = cleanLogin;
+      }
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
         options: {
           redirectTo: redirectUrl,
           scopes: 'read:user user:email repo',
-          queryParams: { role: 'student' },
+          queryParams,
         },
       });
       return { error };
@@ -226,6 +249,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('codepilot_demo_active');
     localStorage.removeItem('codepilot_demo_user');
     localStorage.removeItem('codepilot_user_role');
+    localStorage.removeItem('codepilot_student_gh_username');
+    localStorage.removeItem('codepilot_student_name');
+    localStorage.removeItem('codepilot_student_avatar');
+    localStorage.removeItem('codepilot_student_repos');
     localStorage.removeItem('codepilot_gh_token');
     setIsDemoUser(false);
     setUser(null);

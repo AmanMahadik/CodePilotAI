@@ -49,6 +49,8 @@ function AuthAccountPageContent() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [capsLockActive, setCapsLockActive] = useState(false);
   const [scopesExpanded, setScopesExpanded] = useState(false);
+  const [showGithubAccountHint, setShowGithubAccountHint] = useState(false);
+  const [githubUsernameHint, setGithubUsernameHint] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingApproval, setPendingApproval] = useState(false);
@@ -113,12 +115,13 @@ function AuthAccountPageContent() {
 
   const strength = getPasswordStrength(password);
 
-  // GitHub OAuth Handler
-  const handleGitHubAuth = async () => {
+  // GitHub OAuth Handler (prompts account selection so any GitHub account can sign in)
+  const handleGitHubAuth = async (loginHintOverride?: string) => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const { error } = await signInWithGithub();
+      const hint = (loginHintOverride ?? githubUsernameHint).trim().replace(/^@/, '');
+      const { error } = await signInWithGithub(hint ? { loginHint: hint } : undefined);
       if (error) {
         console.error('GitHub sign in error:', error);
         setErrorMessage(error.message || 'GitHub sign-in could not be initiated.');
@@ -396,25 +399,65 @@ function AuthAccountPageContent() {
                     </p>
                   </div>
 
-                  {/* Standard Neutral GitHub Button */}
+                  {/* Standard Neutral GitHub Button (prompts GitHub account chooser) */}
                   <button
                     type="button"
-                    onClick={handleGitHubAuth}
+                    onClick={() => handleGitHubAuth()}
                     disabled={loading}
                     className="w-full h-11 flex items-center justify-center gap-3 rounded-xl bg-[#24292f] hover:bg-[#2c323a] text-white text-xs font-semibold shadow-md transition-colors border border-slate-700/60 disabled:opacity-50"
                   >
                     {loading ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                        <span>Authorizing with GitHub...</span>
+                        <span>Opening GitHub account chooser...</span>
                       </>
                     ) : (
                       <>
                         <Github className="w-4 h-4" />
-                        <span>Continue with GitHub</span>
+                        <span>
+                          {githubUsernameHint.trim()
+                            ? `Continue with GitHub as @${githubUsernameHint.trim().replace(/^@/, '')}`
+                            : 'Continue with GitHub'}
+                        </span>
                       </>
                     )}
                   </button>
+
+                  {/* Optional Account Switcher Hint */}
+                  <div className="rounded-xl bg-[#070a12] border border-[#172033] overflow-hidden text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setShowGithubAccountHint(!showGithubAccountHint)}
+                      className="w-full py-2 px-3.5 flex items-center justify-between text-[11px] text-slate-400 hover:text-slate-200 transition-colors"
+                    >
+                      <span>Choose or switch GitHub account</span>
+                      {showGithubAccountHint ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </button>
+                    {showGithubAccountHint && (
+                      <div className="px-3.5 pb-3 pt-2 border-t border-[#172033] space-y-2">
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          GitHub will ask which account to sign in with. Optionally enter a GitHub username below to pre-select it on GitHub:
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={githubUsernameHint}
+                            onChange={(e) => setGithubUsernameHint(e.target.value)}
+                            placeholder="e.g. octocat (optional)"
+                            className="flex-1 h-9 px-3 rounded-lg bg-[#0d1220] border border-[#1c2438] text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#388bfd]"
+                          />
+                          <button
+                            type="button"
+                            disabled={loading}
+                            onClick={() => handleGitHubAuth(githubUsernameHint)}
+                            className="px-3 h-9 rounded-lg bg-[#1f6feb] hover:bg-[#388bfd] text-white text-[11px] font-semibold transition-colors disabled:opacity-50"
+                          >
+                            Sign in
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Collapsible Scopes Info */}
                   <div className="rounded-xl bg-[#070a12] border border-[#172033] overflow-hidden text-xs">

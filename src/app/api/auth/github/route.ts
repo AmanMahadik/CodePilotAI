@@ -26,8 +26,11 @@ export async function GET(req: NextRequest) {
   const encodedState = Buffer.from(statePayload).toString('base64url');
 
   // Scopes requested: read:user, user:email, and repo for code review
+  // prompt=select_account ensures GitHub always displays the account chooser instead of auto-signing in
   const scopes = encodeURIComponent('read:user user:email repo');
-  const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&state=${encodedState}`;
+  const loginHint = searchParams.get('login')?.trim().replace(/^@/, '');
+  const loginParam = loginHint ? `&login=${encodeURIComponent(loginHint)}` : '';
+  const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&state=${encodedState}&prompt=select_account${loginParam}`;
 
   const response = NextResponse.redirect(githubAuthUrl);
   response.cookies.set({

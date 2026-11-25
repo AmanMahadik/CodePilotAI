@@ -25,8 +25,15 @@ function AuthCallbackContent() {
       setStatusMessage('Syncing your GitHub repositories into workspace...');
       
       try {
+        localStorage.removeItem('codepilot_demo_active');
         if (session?.provider_token) {
           localStorage.setItem('codepilot_gh_token', session.provider_token);
+        }
+        const ghUsername =
+          (session?.user?.user_metadata?.user_name as string) ||
+          (session?.user?.user_metadata?.preferred_username as string);
+        if (ghUsername) {
+          localStorage.setItem('codepilot_student_gh_username', ghUsername);
         }
         localStorage.setItem('codepilot_user_role', 'student');
         // Non-blocking repo prefetch
