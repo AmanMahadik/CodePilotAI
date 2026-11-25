@@ -19,7 +19,8 @@ import {
 import Logo from '@/components/Logo';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { getReviewById, getLatestReview, getStoredRepositories } from '@/lib/store';
-import { Review, Finding } from '@/lib/types';
+import { Review } from '@/lib/types';
+import { RepositoryRagIndex } from '@/lib/rag-engine';
 
 interface ChatItem {
   role: 'assistant' | 'user';
@@ -29,6 +30,7 @@ interface ChatItem {
     file: string;
     lines: string;
     type: string;
+    codeSnippet?: string;
   };
 }
 
@@ -46,6 +48,8 @@ export default function TerminalAIPage() {
   const [messages, setMessages] = useState<ChatItem[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [ragEngine, setRagEngine] = useState<RepositoryRagIndex | null>(null);
+  const [allRepoFiles, setAllRepoFiles] = useState<string[]>([]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -60,18 +64,25 @@ export default function TerminalAIPage() {
       setRepoName(determinedName);
       setBranch(determinedBranch);
 
+      const filesMap = activeReview?.files || matchingRepo?.files || {};
+      const fileKeys = Object.keys(filesMap);
+      const index = new RepositoryRagIndex(determinedName, filesMap, activeReview?.findings || []);
+      setRagEngine(index);
+      setAllRepoFiles(fileKeys);
+
       // Initial system message
       const defaultMsg: ChatItem = {
         role: 'assistant',
-        author: 'CodePilot AI • Repository Agent',
+        author: 'CodePilot AI • RAG Agent',
         content: activeReview
-          ? `Hello! I have indexed ${determinedName} (${determinedBranch}). I can explain its architecture, inspect code findings, evaluate AST structures, and suggest safe refactoring solutions.`
-          : `Hello! CodePilot Terminal is online. Connect or review a repository to inspect codebase architecture, OWASP vulnerabilities, and AST metrics.`,
+          ? `Hello! I have indexed ${determinedName} (${determinedBranch}) using the Repository Grounded RAG Engine. ${fileKeys.length > 0 ? `Chunked ${fileKeys.length} source files and ` : ''}Indexed ${activeReview.findings.length} findings with line-level citations. Ask me anything about architecture, vulnerabilities, or code logic!`
+          : `Hello! CodePilot Terminal RAG Engine is online. Connect or review a repository to inspect codebase architecture, OWASP vulnerabilities, and AST metrics.`,
         context: activeReview?.findings?.[0]
           ? {
               file: activeReview.findings[0].file,
               lines: `${activeReview.findings[0].lineStart}-${activeReview.findings[0].lineEnd}`,
               type: `${activeReview.findings[0].severity} • ${activeReview.findings[0].category}`,
+              codeSnippet: activeReview.findings[0].codeSnippet,
             }
           : undefined,
       };
@@ -166,8 +177,31 @@ export default function TerminalAIPage() {
     }
 
     setTimeout(() => {
+      if (ragEngine) {
+        const ragRes = ragEngine.generateAnswer(text, review);
+        const topCit = ragRes.citations?.[0];
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            author: 'CodePilot AI • Repository RAG Agent',
+            content: ragRes.answer,
+            context: topCit
+              ? {
+                  file: topCit.file,
+                  lines: topCit.lineRange,
+                  type: topCit.type,
+                  codeSnippet: topCit.codeSnippet,
+                }
+              : undefined,
+          },
+        ]);
+        setIsTyping(false);
+        return;
+      }
+
       let reply = '';
-      let ctx: { file: string; lines: string; type: string } | undefined = undefined;
+      let ctx: ChatItem['context'] | undefined = undefined;
 
       const lower = text.toLowerCase();
 
@@ -244,7 +278,9 @@ export default function TerminalAIPage() {
     }, 900);
   };
 
-  const uniqueFiles = Array.from(new Set(review?.findings.map((f) => f.file) || []));
+  const explorerFiles = allRepoFiles.length > 0
+    ? allRepoFiles
+    : Array.from(new Set(review?.findings.map((f) => f.file) || []));
 
   return (
     <div className="space-y-4 w-full max-w-[1600px] mx-auto min-h-[700px] h-[calc(100vh-115px)] flex flex-col">
@@ -286,7 +322,7 @@ export default function TerminalAIPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 uppercase tracking-wider">
                 <span>Explorer</span>
-                <span>{review?.totalFilesAnalyzed || uniqueFiles.length || 0} files</span>
+                <span>{review?.totalFilesAnalyzed || explorerFiles.length || 0} files</span>
               </div>
 
               {/* File Tree */}
@@ -297,8 +333,8 @@ export default function TerminalAIPage() {
                 </div>
 
                 <div className="pl-3 space-y-1">
-                  {uniqueFiles.length > 0 ? (
-                    uniqueFiles.map((filePath, idx) => (
+                  {explorerFiles.length > 0 ? (
+                    explorerFiles.map((filePath, idx) => (
                       <div
                         key={idx}
                         onClick={() => handleSend(`Explain code in ${filePath}`)}
@@ -375,6 +411,11 @@ export default function TerminalAIPage() {
                       <div className="text-slate-400 text-[10px]">
                         {msg.context.type}
                       </div>
+                      {msg.context.codeSnippet && (
+                        <pre className="mt-2 p-2.5 rounded bg-[#0c111e] border border-[#1c2438] text-[10.5px] text-slate-300 overflow-x-auto whitespace-pre-wrap break-all">
+                          {msg.context.codeSnippet}
+                        </pre>
+                      )}
                     </div>
                   )}
                 </div>

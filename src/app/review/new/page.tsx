@@ -267,33 +267,39 @@ function AddRepositoryContent() {
     ]);
 
     // Step 3: REAL Language Detection
-    await new Promise((r) => setTimeout(r, 800));
-    const langStats = detectLanguages(Object.keys(extractedFiles));
-    const langSummary = Object.entries(langStats.distribution)
+    await new Promise((r) => setTimeout(r, 600));
+    const langDist = detectLanguages(extractedFiles);
+    const primaryLang = Object.entries(langDist).sort((a, b) => b[1] - a[1])[0]?.[0] || 'TypeScript';
+    const langSummary = Object.entries(langDist)
       .map(([l, p]) => `${l} (${p}%)`)
       .join(', ') || 'Source Code';
+
+    let totalLoc = 0;
+    for (const content of Object.values(extractedFiles)) {
+      totalLoc += content.split('\n').length;
+    }
 
     setStepStatuses((prev) => ({ ...prev, s3: 'Completed', s4: 'Running' }));
     setLogs((prev) => [
       ...prev,
-      `[step-03] Languages detected: ${langSummary}.`,
+      `[step-03] Languages detected: ${langSummary}. Primary: ${primaryLang} (${totalLoc} LOC).`,
     ]);
 
     // Step 4: AST parsing & Groq Multi-Agent Orchestration
     setLogs((prev) => [
       ...prev,
-      `[step-04] AST parsing complete. Disagreeing agents in Groq Multi-Agent Orchestrator...`,
+      `[step-04] AST parsing complete. Dispatching agents in Groq Multi-Agent Orchestrator...`,
     ]);
 
     let review;
     try {
-      setLogs((prev) => [...prev, '[agent-orchestrator] Calling Groq Multi-Agent Pipeline (openai/gpt-oss-120b)...']);
+      setLogs((prev) => [...prev, '[agent-orchestrator] Calling Groq Multi-Agent Pipeline...']);
       const apiRes = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           repoName,
-          branch: 'main',
+          branch: selectedRepoObj?.branch || 'main',
           skillLevel,
           files: extractedFiles,
           brandingInfo: {
@@ -322,13 +328,36 @@ function AddRepositoryContent() {
       return;
     }
 
+    // Persist files on review & repository for RAG Terminal AI & Viva Simulator
+    review.files = extractedFiles;
+
+    const repoRecord: Repository = {
+      id: review.repositoryId || selectedRepoObj?.id || `repo-${Date.now()}`,
+      name: repoName,
+      owner: selectedRepoObj?.owner || (user?.user_metadata?.user_name as string) || 'developer',
+      source: activeTab === 'zip' ? 'upload_zip' : 'github',
+      branch: selectedRepoObj?.branch || 'main',
+      url: githubUrl || selectedRepoObj?.url || undefined,
+      primaryLanguage: primaryLang,
+      languageDistribution: langDist,
+      lastReviewedAt: new Date().toISOString(),
+      reviewCount: (selectedRepoObj?.reviewCount || 0) + 1,
+      latestScore: review.scores?.overall || 85,
+      totalFiles: validFileCount,
+      totalLOC: totalLoc,
+      exclusionRules: Object.keys(exclusions).filter((k) => exclusions[k as keyof typeof exclusions]),
+      createdAt: selectedRepoObj?.createdAt || new Date().toISOString(),
+      files: extractedFiles,
+    };
+
+    saveRepository(repoRecord);
+    saveReview(review);
+
     setStepStatuses((prev) => ({ ...prev, s4: 'Completed' }));
     setLogs((prev) => [
       ...prev,
       `[synthesis] Review synthesized (${review.scores?.overall || 88}/100 with ${review.findings?.length || 0} findings). Redirecting to audit dashboard...`,
     ]);
-
-    saveReview(review);
 
     setTimeout(() => {
       router.push(`/review/${review.id}`);
